@@ -1,0 +1,96 @@
+---
+title: "Inital Transformation"
+author: "Group 5"
+date: '2023-01-24'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(ggplot2)
+library(tm)
+#library(keras)
+```
+
+# Functions
+```{r Functions}
+#------------------------------------------------------------------------------
+#Function just so i don't loose my mind waiting for a function to finish
+#P: Makes sure function does not print the same percentage: initialize p = 0 
+#outside the loop
+#Length: How long the loop is
+#i: the iterator
+print_percent <- function(i, length, p) {
+  percent <- floor((i/length * 100))
+  if(percent %% 10 == 0 && p != percent){
+      print(paste0(percent,"% Complete"))
+      p = percent
+    }
+    return(p)
+}
+#------------------------------------------------------------------------------
+#Seperates hashtags from text
+#Takes in a column of text and returns a list of hash tags
+get_hashtags_df <- function(text) {
+  tweets <- text
+  tweets_separated <- tweets %>% str_split(pattern = " ")
+  y <- list()
+  p = 0
+  for (i in 1:length(tweets_separated)) {
+    hashtags <- list()
+    for(k in 1:length(tweets_separated[[i]])){
+      if(grepl(tweets_separated[[i]][k], pattern = "#.*")){
+        hashtags <- append(hashtags,tweets_separated[[i]][k])
+      }
+    }
+    #print(hashtags)
+    y <- append(y,list(hashtags))
+    #assign("y", y, envir = .GlobalEnv)
+    #print(y)
+    
+    
+    p = print_percent(i,length = length(tweets_separated), p = p)
+    #print()#," Percent complete")
+    
+   #print(tweets_separated[[i]])
+  }
+  y
+}
+```
+
+# Read in Data
+```{r Read In data}
+Dir <- 'Datasets/Tweets_with_Sarcasm_and_Irony'
+train <- read_csv(paste0(Dir,"/train.csv"))
+test <- read_csv(paste0(Dir,"/test.csv"))
+#test <- test %>% filter(!is.na(class))
+
+
+```
+
+
+
+
+# Separate Hashtags from text into a new column
+```{r Separate Hashtags from text, eval=FALSE}
+Dir <- 'Datasets/Tweets_with_Sarcasm_and_Irony'
+train <- read_csv(paste0(Dir,"/train.csv"))
+#tweets <- train$tweets
+y <- get_hashtags_df(train$tweets)
+train$tweets <- train$tweets %>% sub(pattern = "#.* | #.*$", replacement = "")
+train <- train %>% mutate(hashtags = y)
+#Note to load from disk use load("Datasets/train_w_hashtags.RData") in the markdown file
+save(train, file="Datasets/train_w_hashtags.RData")
+
+
+
+test <- read_csv(paste0(Dir,"/test.csv"))
+y <- get_hashtags_df(train$tweets)
+train$tweets <- train$tweets %>% sub(pattern = "#.* | #.*$", replacement = "")
+train <- train %>% mutate(hashtags = y)
+#Note to load from disk use load("Datasets/test_w_hashtags.RData") in the markdown file
+save(test, file="Datasets/test_w_hashtags.RData")
+```
+
+
+

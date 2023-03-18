@@ -1,0 +1,96 @@
+---
+title: "Visualization and Transformation"
+author: "Group 5"
+date: "3/18/2023"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(ggplot2)
+library(tm)
+library(knitr)
+library(stringr)
+#library(keras)
+```
+
+# Retrieve Data
+```{r Read_Data}
+Dir <- 'Datasets/Tweets_with_Sarcasm_and_Irony'
+train <- read_csv(paste0(Dir,"/train.csv"))
+test <- read_csv(paste0(Dir,"/test.csv"))
+#test <- test %>% filter(!is.na(class))
+```
+```{r Text Transformation}
+train$tweets <- map(train$tweets, .f = function(x){
+  str_squish(x)
+}) %>% unlist()
+```
+
+
+# Some Exploration
+```{r count rows, columns}
+classes <- train$class %>% unique()
+num_obs_train <- nrow(train)
+num_obs_test <- nrow(test)
+```
+Classes:  `r classes`<br>
+Number of observations in Train: `r num_obs_train`<br>
+Number of observations in Test: `r num_obs_test`<br>
+
+```{r}
+t <- train %>% group_by(class) %>% count()
+kable(t)
+```
+```{r Missing Data}
+train %>% filter(tweets == "" | tweets == " " | is.na(tweets))
+```
+```{r}
+tweet_lengths <- train$tweets %>% map(
+              .f = function(x){
+  str_count(x, pattern = " ") + 1
+}) %>% unlist()
+
+ids <- 1:nrow(train)
+train_temp <- train %>% mutate(tweet_length = tweet_lengths,
+                               id = ids)
+
+train_temp %>% ggplot(aes(x = tweet_lengths)) + 
+  geom_bar(aes(fill = after_stat(count)))
+
+
+
+
+```
+```{r}
+train_temp %>% ggplot(aes(y = tweet_lengths)) + 
+  geom_boxplot()
+```
+```{r}
+train_temp %>% ggplot(aes(x = class, y = tweet_lengths)) + 
+  geom_boxplot()
+```
+
+
+
+  
+
+
+Max tweet length: `r max(tweet_lengths)`<br>
+Min tweet length: `r min(tweet_lengths)`<br>
+Mean tweet length: `r mean(tweet_lengths)`<br>
+
+```{r}
+t <- train_temp %>% filter(tweet_lengths == max(tweet_lengths))
+kable(t)
+```
+
+```{r}
+t <- train_temp %>% filter(tweet_lengths == min(tweet_lengths))
+kable(t)
+```
+
+
+
+
+
