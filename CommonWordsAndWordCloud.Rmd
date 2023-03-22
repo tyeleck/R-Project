@@ -11,6 +11,21 @@ library(ggwordcloud)
 unique(train$class) #class = " ", figurative, irony, regular, and sarcasm
 
 
+
+```{r setup}
+library('stopwords')
+library('tidyverse')
+library('ggplot2')
+library('ggwordcloud')
+#library('readxl')
+
+
+
+```
+
+
+
+
 ```{r load_dataset}
 train <- read.csv('Datasets/Tweets_with_Sarcasm_and_Irony/train.csv')
 test <- read.csv('Datasets/Tweets_with_Sarcasm_and_Irony/test.csv')
@@ -28,6 +43,9 @@ ironySet <- filter(train, class == "irony")
 sarcasmSet <- filter(train, class =="sarcasm")
 
 regularSet <- filter(train, class =="regular")
+
+
+not_regularSet <- filter(train, class != "regular")
 ```
 #Collect the words and their frequencies from the set
 ```{r eval=FALSE}
@@ -39,6 +57,8 @@ freq_irony <- as.data.frame(sort(table(unlist(strsplit(ironySet$tweets," "))), d
 freq_sarcasm <- as.data.frame(sort(table(unlist(strsplit(sarcasmSet$tweets," "))), decreasing = TRUE), stringsAsFactors = FALSE)
 
 freq_regular <- as.data.frame(sort(table(unlist(strsplit(regularSet$tweets," "))), decreasing = TRUE), stringsAsFactors = FALSE)
+
+freq_not_regular <- as.data.frame(sort(table(unlist(strsplit(not_regularSet$tweets," "))), decreasing = TRUE), stringsAsFactors = FALSE)
 ```
 
 #Key objects: frequency sets
@@ -93,10 +113,6 @@ ggplot(dfSubsetRegular, aes(label = Var1, size = length(Var1), color = Var1)) +
 
 ```{r echo=FALSE}
 #library
-library(tidyverse)
-library(ggplot2)
-library(ggwordcloud)
-library(readxl)
 #train <- read_excel("D:\\OneDrive - SUNY Brockport\\Spring 2023-LAPTOP-4BPR9F3O\\Data Analysis\\Tweety Project\\trainXL.xlsx")
 
 #Filter tweets with their classes
@@ -177,8 +193,17 @@ frequencys <- full_join(freq_figurative,freq_irony, by = "Var1") %>%
          sarcasm = Freq.y.y)
 
 
-frequencys[is.na(frequencys)] <- 1
+frequencys_2_class <-  full_join(freq_regular,freq_not_regular, by = "Var1") %>%
+   rename(regular = Freq.x,
+         not_regular = Freq.y)
+
+
+frequencys_2_class[frequencys_2_class == 0] <- 1
+frequencys_2_class[is.na(frequencys_2_class)] <- 1
+
+
 frequencys[frequencys == 0] <- 1
+frequencys[is.na(frequencys)] <- 1
 
 frequencys <- frequencys %>%
   mutate(figurative_prop = figurative/(irony * regular * sarcasm)) %>%
@@ -187,16 +212,44 @@ frequencys <- frequencys %>%
   mutate(regular_prop = regular/(figurative * sarcasm * irony)) 
 
 
+frequencys_2_class <- frequencys_2_class %>% 
+  mutate(prop = regular/not_regular) %>%
+  mutate(inv_prop = not_regular/regular)
+
+
+
+max = 60
 #graph_freq <- function(df, max_entries = 60) {
   frequencys %>% 
   arrange(desc(regular_prop)) %>%
-  slice(1:60) %>%
+  slice(1:max) %>%
   ggplot(aes(y = regular_prop, x = reorder(Var1, order(regular_prop, decreasing = TRUE)))) +
   geom_bar(stat='identity') +
   theme(axis.text.x = element_text(angle = 60, hjust = 1))
 #}
 
+  frequencys_2_class %>% 
+  arrange(desc(prop)) %>%
+  slice(1:max) %>%
+  ggplot(aes(y = prop, x = reorder(Var1, order(prop, decreasing = TRUE)))) +
+  geom_bar(stat='identity') +
+  theme(axis.text.x = element_text(angle = 60, hjust = 1))
+
+  
 
 
+```
+
+```{r}
+
+frequencys_tmp <- frequencys_2_class %>%
+  arrange(desc(prop)) %>%
+  slice(1:1000)
+
+
+ggplot(frequencys_tmp, aes(label = Var1, size = prop, color = prop >= inv_prop)) +
+  geom_text_wordcloud_area(eccentricity = .35) +
+  scale_size_area(max_size = 10) +
+  theme_minimal() 
 ```
 
