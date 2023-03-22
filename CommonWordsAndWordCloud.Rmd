@@ -180,6 +180,32 @@ ggplot(dfSubsetRegular, aes(label = Var1, size = length(Var1), color = Var1)) +
   theme_minimal() 
 
 ```
+```{r}
+ outlierSubsetFigurative <- subset(freq_figurative, Freq > 851, stringsAsFactors = FALSE)
+  outlierSubsetFigurative %>% 
+    ggplot(aes(x = reorder(Var1, order(Freq, decreasing = TRUE)), y = Freq)) +
+        geom_bar(stat = 'identity')  +
+          theme(axis.text.x = element_text(angle = 60, hjust = 1))
+  
+  outlierSubsetIrony <- subset(freq_irony, Freq > 851, stringsAsFactors = FALSE)
+  outlierSubsetIrony %>% 
+    ggplot(aes(x = reorder(Var1, order(Freq, decreasing = TRUE)), y = Freq)) +
+        geom_bar(stat = 'identity')  +
+          theme(axis.text.x = element_text(angle = 60, hjust = 1))
+  
+  outlierSubsetSarcasm <- subset(freq_sarcasm, Freq > 851, stringsAsFactors = FALSE)
+  outlierSubsetSarcasm %>% 
+    ggplot(aes(x = reorder(Var1, order(Freq, decreasing = TRUE)), y = Freq)) +
+        geom_bar(stat = 'identity')  +
+          theme(axis.text.x = element_text(angle = 60, hjust = 1))
+  
+  outlierSubsetRegular <- subset(freq_regular, Freq > 851, stringsAsFactors = FALSE)
+  outlierSubsetRegular %>% 
+    ggplot(aes(x = reorder(Var1, order(Freq, decreasing = TRUE)), y = Freq)) +
+        geom_bar(stat = 'identity')  +
+          theme(axis.text.x = element_text(angle = 60, hjust = 1))
+```
+
 
 
 ```{r}
