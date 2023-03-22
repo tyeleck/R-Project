@@ -29,9 +29,39 @@ library('ggwordcloud')
 ```{r load_dataset}
 train <- read.csv('Datasets/Tweets_with_Sarcasm_and_Irony/train.csv')
 test <- read.csv('Datasets/Tweets_with_Sarcasm_and_Irony/test.csv')
+
 ```
 
 
+
+```{r}
+words2pattern <- function(x) {
+  str = "\b("
+  for (i in 1:length(x)) {
+    if(i == length(x)) {
+      str <- paste0(str, x[i])
+    } else {
+      str <- paste0(str, x[i]) %>%
+      paste0("|")
+    }
+  }
+  str <- paste0(str,")\b")
+}
+
+
+stopwords_pattern <- words2pattern(stopwords())
+
+
+clean <- function(x) {
+    gsub(stopwords_pattern,"",tolower(x))
+    
+}
+
+
+
+cleaned_df <- train$tweets %>%
+  map(.f = clean) %>% unlist()
+```
 
 
 #Filter tweets with their classes
