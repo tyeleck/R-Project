@@ -46,16 +46,31 @@ words2pattern <- function(x) {
     }
   }
   str <- paste0(str,")\b")
+  str
 }
 
 
 stopwords_pattern <- words2pattern(stopwords())
+check_with_stopwords <- function(x) {
+  l = list()
+  for(i in x) {
+    for (k in stopwords()) {
+      if (i != x) {
+        list = append(l, i)
+      }
+    }
+  }
+  return(l)
+}
 
 
 clean <- function(x) {
-    gsub(stopwords_pattern,"",tolower(x))
+    str_split(x, pattern = " ") %>%
+    check_with_stopwords() %>%
+    paste()
     
 }
+
 
 
 
