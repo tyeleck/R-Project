@@ -242,14 +242,33 @@ max = 60
 
 ```{r}
 
-frequencys_tmp <- frequencys_2_class %>%
+
+max = 60
+frequencys_tmp_prop <- frequencys_2_class %>%
   arrange(desc(prop)) %>%
-  slice(1:1000)
+  slice(1:max)
+
+frequencys_tmp_inv_prop <- frequencys_2_class %>%
+  arrange(desc(inv_prop)) %>%
+  slice(1:max)
 
 
-ggplot(frequencys_tmp, aes(label = Var1, size = prop, color = prop >= inv_prop)) +
-  geom_text_wordcloud_area(eccentricity = .35) +
-  scale_size_area(max_size = 10) +
-  theme_minimal() 
+ggplot(frequencys_tmp_prop, aes(label = Var1, size = prop)) +
+  geom_text_wordcloud_area(eccentricity = .54, color = 'red') +
+  #scale_size_area(max_size = 30) +
+  theme_minimal() +  
+  ggtitle ('Words found in tweets that are considered regular')
+
+ggplot(frequencys_tmp_inv_prop, aes(label = Var1, size = inv_prop)) +
+  geom_text_wordcloud_area(eccentricity = .54, color = 'blue') +
+  #scale_size_area(max_size = 30) +
+  theme_minimal() +  
+  ggtitle ('Words found in tweets that are not considered regular (irony, figurative, sarcasm)')
+  
+
+
+
+
+
 ```
 
