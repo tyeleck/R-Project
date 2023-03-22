@@ -10,6 +10,15 @@ library(ggplot2)
 library(ggwordcloud)
 unique(train$class) #class = " ", figurative, irony, regular, and sarcasm
 
+
+```{r load_dataset}
+train <- read.csv('Datasets/Tweets_with_Sarcasm_and_Irony/train.csv')
+test <- read.csv('Datasets/Tweets_with_Sarcasm_and_Irony/test.csv')
+```
+
+
+
+
 #Filter tweets with their classes
 ```{r eval=FALSE}
 figurativeSet <- filter(train, class=="figurative")
@@ -88,7 +97,7 @@ library(tidyverse)
 library(ggplot2)
 library(ggwordcloud)
 library(readxl)
-train <- read_excel("D:\\OneDrive - SUNY Brockport\\Spring 2023-LAPTOP-4BPR9F3O\\Data Analysis\\Tweety Project\\trainXL.xlsx")
+#train <- read_excel("D:\\OneDrive - SUNY Brockport\\Spring 2023-LAPTOP-4BPR9F3O\\Data Analysis\\Tweety Project\\trainXL.xlsx")
 
 #Filter tweets with their classes
 figurativeSet <- filter(train, class=="figurative")
@@ -155,3 +164,39 @@ ggplot(dfSubsetRegular, aes(label = Var1, size = length(Var1), color = Var1)) +
   theme_minimal() 
 
 ```
+
+
+```{r}
+freq_figurative
+frequencys <- full_join(freq_figurative,freq_irony, by = "Var1") %>%
+  full_join(freq_regular, by = "Var1") %>%
+  full_join(freq_sarcasm, by = "Var1") %>%
+  rename(figurative = Freq.x,
+         irony = Freq.y,
+         regular = Freq.x.x,
+         sarcasm = Freq.y.y)
+
+
+frequencys[is.na(frequencys)] <- 1
+frequencys[frequencys == 0] <- 1
+
+frequencys <- frequencys %>%
+  mutate(figurative_prop = figurative/(irony * regular * sarcasm)) %>%
+  mutate(irony_prop = irony/(figurative * regular * sarcasm)) %>%
+  mutate(sarcasm_prop = sarcasm/(figurative * regular * irony)) %>%
+  mutate(regular_prop = regular/(figurative * sarcasm * irony)) 
+
+
+#graph_freq <- function(df, max_entries = 60) {
+  frequencys %>% 
+  arrange(desc(regular_prop)) %>%
+  slice(1:60) %>%
+  ggplot(aes(y = regular_prop, x = reorder(Var1, order(regular_prop, decreasing = TRUE)))) +
+  geom_bar(stat='identity') +
+  theme(axis.text.x = element_text(angle = 60, hjust = 1))
+#}
+
+
+
+```
+
