@@ -10,6 +10,13 @@ library(ggplot2)
 library(ggwordcloud)
 unique(train$class) #class = " ", figurative, irony, regular, and sarcasm
 
+```{r}
+install.packages('stopwords')
+install.packages('tidyverse')
+install.packages('ggplot2')
+install.packages('ggwordcloud')
+```
+
 
 
 ```{r setup}
@@ -32,6 +39,21 @@ test <- read.csv('Datasets/Tweets_with_Sarcasm_and_Irony/test.csv')
 
 ```
 
+```{r}
+#Function just so i don't loose my mind waiting for a function to finish
+#P: Makes sure function does not print the same percentage: initialize p = 0 
+#outside the loop
+#Length: How long the loop is
+#i: the iterator
+print_percent <- function(i, length, p) {
+  percent <- floor((i/length * 100))
+  if(percent %% 10 == 0 && p != percent){
+      print(paste0(percent,"% Complete"))
+      p = percent
+    }
+    return(p)
+}
+```
 
 
 ```{r}
@@ -53,11 +75,13 @@ words2pattern <- function(x) {
 stopwords_pattern <- words2pattern(stopwords())
 check_with_stopwords <- function(x) {
   l = list()
+ # p = 0
   for(i in x) {
     for (k in stopwords()) {
-      if (i != x) {
-        list = append(l, i)
+      if (i != k) {
+        l = append(l, i)
       }
+     # p = print_percent(i,length = length(x), p = p)
     }
   }
   return(l)
@@ -65,9 +89,12 @@ check_with_stopwords <- function(x) {
 
 
 clean <- function(x) {
-    str_split(x, pattern = " ") %>%
-    check_with_stopwords() %>%
-    paste()
+  words=tolower(x)
+  words <- unlist(strsplit(words, " "))
+  words=words[!words %in% stopwords()]
+  paste(words, collapse = " ")
+  
+  
     
 }
 
