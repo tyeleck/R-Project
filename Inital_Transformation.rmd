@@ -9,6 +9,7 @@ output: html_document
 library(tidyverse)
 library(ggplot2)
 library(tm)
+library(knitr)
 #library(keras)
 ```
 
@@ -91,6 +92,15 @@ train <- train %>% mutate(hashtags = y)
 #Note to load from disk use load("Datasets/test_w_hashtags.RData") in the markdown file
 save(test, file="Datasets/test_w_hashtags.RData")
 ```
+```{r}
+load('Datasets/train_w_hashtags.Rdata')
+train[1:20,] %>% kable()
+```
+```{r}
+train$hashtags %>% head()
+
+```
+
 
 
 

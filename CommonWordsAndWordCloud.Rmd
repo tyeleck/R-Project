@@ -10,12 +10,6 @@ library(ggplot2)
 library(ggwordcloud)
 unique(train$class) #class = " ", figurative, irony, regular, and sarcasm
 
-```{r}
-install.packages('stopwords')
-install.packages('tidyverse')
-install.packages('ggplot2')
-install.packages('ggwordcloud')
-```
 
 
 
@@ -103,11 +97,15 @@ clean <- function(x) {
 
 cleaned_df <- train$tweets %>%
   map(.f = clean) %>% unlist()
+
+train$tweets <- cleaned_df
+
+
 ```
 
 
 #Filter tweets with their classes
-```{r eval=FALSE}
+```{r eval=TRUE}
 figurativeSet <- filter(train, class=="figurative")
 
 ironySet <- filter(train, class == "irony")
@@ -120,7 +118,7 @@ regularSet <- filter(train, class =="regular")
 not_regularSet <- filter(train, class != "regular")
 ```
 #Collect the words and their frequencies from the set
-```{r eval=FALSE}
+```{r eval=TRUE}
 freq_figurative <- as.data.frame(sort(table(unlist(strsplit(figurativeSet$tweets," "))), decreasing = TRUE), stringsAsFactors = FALSE)
 summary(freq_figurative)
 
@@ -139,7 +137,7 @@ freq_not_regular <- as.data.frame(sort(table(unlist(strsplit(not_regularSet$twee
 #Figurative word cloud
 #Since there's over 34,000 tibbles it wouldn't make a wordcloud due to the length in processing
 #So take a subset of the data where we select only the words with 100+ frequencies
-```{r eval=FALSE}
+```{r eval=TRUE}
 
 dfSubsetFigurative <- subset(freq_figurative, Freq > 100, stringsAsFactors = FALSE)
 
@@ -153,7 +151,7 @@ dfSubsetRegular <- subset(freq_regular, Freq > 100, stringsAsFactors = FALSE)
 
 #Now to make the wordcloud
 #Code: 
-```{r eval=FALSE}
+```{r eval=TRUE}
 #figurative
 set.seed(42)
 ggplot(dfSubsetFigurative, aes(label = Var1, size = length(Var1), color = Var1)) +
@@ -252,6 +250,7 @@ ggplot(dfSubsetRegular, aes(label = Var1, size = length(Var1), color = Var1)) +
   theme_minimal() 
 
 ```
+
 ```{r}
  outlierSubsetFigurative <- subset(freq_figurative, Freq > 851, stringsAsFactors = FALSE)
   outlierSubsetFigurative %>% 
@@ -281,7 +280,7 @@ ggplot(dfSubsetRegular, aes(label = Var1, size = length(Var1), color = Var1)) +
 
 
 ```{r}
-freq_figurative
+
 frequencys <- full_join(freq_figurative,freq_irony, by = "Var1") %>%
   full_join(freq_regular, by = "Var1") %>%
   full_join(freq_sarcasm, by = "Var1") %>%
