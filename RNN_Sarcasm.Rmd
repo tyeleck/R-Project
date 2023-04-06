@@ -1,0 +1,34 @@
+---
+title: "RNN_Sarcasm"
+author: "Tye Leckinger"
+date: "4/6/2023"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library('tidyverse')
+
+
+
+Dir <- 'Datasets/Tweets_with_Sarcasm_and_Irony'
+
+```
+
+
+```{r Functions}
+retrieve_dataset <- function(Dir = 'Datasets/Tweets_with_Sarcasm_and_Irony', binary = FALSE) {
+  train <- read_csv(paste0(Dir,"/train.csv"))
+  test <- read_csv(paste0(Dir,"/test.csv"))
+  
+  
+  list(train_set = train,
+       test_set = test)
+}
+
+
+
+
+
+
+```
+
