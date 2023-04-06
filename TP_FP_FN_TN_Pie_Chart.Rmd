@@ -66,6 +66,7 @@ FP_Pie_Chart <- function(Labels, Guesses) {
 
   N_Acc <- round(a_table[1,2] / (a_table[1,2] + a_table[3,2]), digits = 4)
   P_Acc <- round(a_table[4,2] / (a_table[4,2] + a_table[2,2]), digits = 4)
+  Acc <- round((a_table[1,2] + a_table[4,2]) / (a_table[1,2] + a_table[3,2] + a_table[4,2] + a_table[2,2]), digits = 4)
   
   plt <- a_table %>%
     ggplot(aes(x = "", y = value, fill = group)) +
@@ -84,7 +85,8 @@ FP_Pie_Chart <- function(Labels, Guesses) {
   
   plt <- plt +
     annotation_custom(grob = textGrob(paste0("Accuracy Positive: ",P_Acc)),  xmin = 1 - .2, xmax = 1 - .2, ymin = 1 - .025, ymax = 1- .025) +
-    annotation_custom(grob = textGrob(paste0("Accuracy Negative: ",N_Acc)),  xmin = 1 - .2, xmax = 1 - .2, ymin = 1 - .025 - .05, ymax = 1- .025 - .05)
+    annotation_custom(grob = textGrob(paste0("Accuracy Negative: ",N_Acc)),  xmin = 1 - .2, xmax = 1 - .2, ymin = 1 - .025 - .05, ymax = 1- .025 - .05) +
+    annotation_custom(grob = textGrob(paste0("Total Accuracy: ",Acc)),  xmin = 1 - .2, xmax = 1 - .2, ymin = 1 - .025 - .1, ymax = 1- .025 - .1)
   plt
 }
 
