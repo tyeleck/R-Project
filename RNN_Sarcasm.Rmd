@@ -5,30 +5,278 @@ date: "4/6/2023"
 output: html_document
 ---
 
-```{r setup, include=FALSE}
+```{r setup}
 library('tidyverse')
-
+library('caret')
+library('keras')
+library("cowplot")
+library('grid')
+#library('ggrepel')
 
 
 Dir <- 'Datasets/Tweets_with_Sarcasm_and_Irony'
 
-```
+tensorflow::tf$python$client$device_lib$list_local_devices() %>% print()
 
-
-```{r Functions}
 retrieve_dataset <- function(Dir = 'Datasets/Tweets_with_Sarcasm_and_Irony', binary = FALSE) {
   train <- read_csv(paste0(Dir,"/train.csv"))
+  
+  
   test <- read_csv(paste0(Dir,"/test.csv"))
+  test <- test %>% filter(!is.na(class))
+  
+  factor_set <- function(set) {
+    set$class[set$class == 'regular'] = 0
+    set$class[set$class == 'sarcasm'] = 1
+    
+    if(!binary) {
+      set$class[set$class == 'figurative'] = 2
+      set$class[set$class == 'irony'] = 3
+    } else {
+      set$class[set$class == 'figurative'] = 1
+      set$class[set$class == 'irony'] = 1
+    }
+    set
+  }
+  
+  
+  
+  
+  
+  
+  train <- factor_set(train)
+  test <- factor_set(test)
+  
+  index <- createDataPartition(train$class, p = .8, list = FALSE)
+  
+  train <- train[index,]
+  validation <- train[-index,]
+  
+  
+   
+  training_labels <- (train$class %>% as.array() %>% as.double()) #normalize
+  validation_labels <- (validation$class %>% as.array() %>% as.double()) #normalize
+  test_labels <-  (test$class %>% as.array() %>% as.double()) 
+  
   
   
   list(train_set = train,
-       test_set = test)
+       train_labels = training_labels,
+       test_set = test,
+       test_labels = test_labels,
+       validation_set = validation,
+       validation_labels = validation_labels)
+}
+#--------------------------------------------------------------------------------
+generate_sequences <- function(train_data,#training data
+                               validation_data,# validation data
+                               testing_data,
+                               maxlen = 50,#maximum length of the embedding sequence
+                               max_words = 2000)#will only choose consider max_words amount of words for the embedding
+{
+  
+ 
+  training_text <- train_data$tweets %>% as.array()#get the text
+  validation_text <- validation_data$tweets %>% as.array()#get the text
+  testing_text <- testing_data$tweets %>% as.array()
+  
+  tokenizer <- text_tokenizer(num_words = max_words) %>%#create and fit tokenizer
+  fit_text_tokenizer(training_text)
+ 
+  
+  
+  sequences <- texts_to_sequences(tokenizer,training_text) #Translates text to sequences of integers(use the tokenizer$word_index to know which int maps to what word)
+  training_sequences <- pad_sequences(sequences, maxlen = maxlen)#make all sequences the same length with the length being maxlen
+  sequences <- texts_to_sequences(tokenizer,validation_text) #Translates text to sequences of integers(use the tokenizer$word_index to know which int maps to what word)
+  validation_sequences <- pad_sequences(sequences, maxlen = maxlen)#make all sequences the same length with the length being maxlen
+  sequences <- texts_to_sequences(tokenizer,testing_text)
+  testing_sequences <- pad_sequences(sequences, maxlen = maxlen)
+  
+  
+  
+  list(train = training_sequences,
+       validation = validation_sequences,
+       test = testing_sequences,
+       tokenizer = tokenizer
+       )
 }
 
 
+sets <- retrieve_dataset(binary = TRUE)
+#-------------------------------------------------------------------------------------------------------------------
+Accuracy_Label_Table <- function (Labels, Guesses) {
+  Value_P <- function(Label, Guess){
+  bin <- as.integer( #Returns int equivalent of binary value Label,Guess
+    strtoi(
+      paste0(Label * 10 + Guess), 
+      base = 2
+      )
+    )
+  
+    arr <- c("TN", #Label = 0, Guess = 0
+             "FP", #Label = 0, Guess = 1
+             "FN", #Label = 1, Guess = 0
+             "TP" #Label = 1, Guess = 1
+             )
+    return(arr[bin+1])
+  
+  
+  }
+  
+  result <- map2(.x = Labels, .y = Guesses,.f = Value_P) %>% unlist()
 
+  TN_Count <- result[result == "TN"] %>% length()
+  FP_Count <- result[result == "FP"] %>% length()
+  FN_Count <- result[result == "FN"] %>% length()
+  TP_Count <- result[result == "TP"] %>% length()
+  
+  
+  group = c("True Negative (TN)", #Label = 0, Guess = 0
+             "False Positive (FP)", #Label = 0, Guess = 1
+             "False Negative (FN)", #Label = 1, Guess = 0
+             "True Positive (TP)" #Label = 1, Guess = 1
+             )
+  value = c(TN_Count,
+            FP_Count,
+            FN_Count,
+            TP_Count)
+  
+  data.frame(group = group,
+             value = value)
+}
+#-------------------------------------------------------------------------------
+FP_Pie_Chart <- function(Labels, Guesses) {
+  a_table <- Accuracy_Label_Table(Labels = Labels,
+                     Guesses = Guesses)
+
+  N_Acc <- round(a_table[1,2] / (a_table[1,2] + a_table[3,2]), digits = 4)
+  P_Acc <- round(a_table[4,2] / (a_table[4,2] + a_table[2,2]), digits = 4)
+  Acc <- round((a_table[1,2] + a_table[4,2]) / (a_table[1,2] + a_table[3,2] + a_table[4,2] + a_table[2,2]), digits = 4)
+  
+  plt <- a_table %>%
+    ggplot(aes(x = "", y = value, fill = group)) +
+    geom_col() + 
+    geom_label(aes(label = value),
+               position = position_stack(vjust = 0.5),
+               show.legend = FALSE) +
+    coord_polar(theta = "y") +
+    scale_fill_manual(values = c("#FFABAB", "#FFB092",
+                                 "#b4d4fa", "#BFFCC6"),
+                      guide = guide_legend(reverse = TRUE)) + 
+    ggtitle("TP, TN, FP, FN Pie Chart") +
+    theme_void()
+  
+  plt <- ggdraw(plt)
+  
+  plt <- plt +
+    annotation_custom(grob = textGrob(paste0("Accuracy Positive: ",P_Acc)),  xmin = 1 - .2, xmax = 1 - .2, ymin = 1 - .025, ymax = 1- .025) +
+    annotation_custom(grob = textGrob(paste0("Accuracy Negative: ",N_Acc)),  xmin = 1 - .2, xmax = 1 - .2, ymin = 1 - .025 - .05, ymax = 1- .025 - .05) +
+    annotation_custom(grob = textGrob(paste0("Total Accuracy: ",Acc)),  xmin = 1 - .2, xmax = 1 - .2, ymin = 1 - .025 - .1, ymax = 1- .025 - .1)
+  plt
+}
+
+
+```
+
+```{r}
+test <- read_csv(paste0(Dir,"/test.csv"))
+train <- read_csv(paste0(Dir,"/train.csv"))
+```
+
+
+```{r Simple RNN, eval=FALSE}
+max_words = 1000
+embedding_dim = 8
+maxlen = 50
+
+
+sets <- retrieve_dataset(binary = TRUE)
+
+train <- sets$train_set
+training_labels <- sets$train_labels
+
+validation <- sets$validation_set
+validation_labels <- sets$validation_labels
+
+test <- sets$test_set
+test_labels <- sets$test_labels
+
+
+sequences <- generate_sequences(train,
+                                validation,
+                                test,
+                                maxlen = maxlen,
+                                max_words = max_words)
+training_sequences <- sequences$train
+validation_sequences <- sequences$validation
+test_sequences <- sequences$test
+
+model <-  keras_model_sequential() %>%
+  layer_embedding(input_dim = max_words,
+                  output_dim = embedding_dim,
+                  input_length = maxlen) %>%
+  layer_lstm(units = 64, return_sequences = FALSE) %>%
+  layer_flatten() %>%
+  layer_dense(units = 1, 
+              activation = "sigmoid") 
+
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "binary_crossentropy",
+  metrics = "accuracy"
+)
+
+history <- model %>% fit(
+  training_sequences,
+  training_labels,
+  epochs = 5,
+  batch_size = 128,
+  validation_data= list(validation_sequences,validation_labels)
+)
+
+
+results <- model %>% evaluate(test_sequences,test_labels)
+results
 
 
 
 ```
+```{r}
+max_words = 1000
+embedding_dim = 8
+maxlen = 50
+
+
+sets <- retrieve_dataset(binary = TRUE)
+
+train <- sets$train_set
+training_labels <- sets$train_labels
+
+validation <- sets$validation_set
+validation_labels <- sets$validation_labels
+
+test <- sets$test_set
+test_labels <- sets$test_labels
+
+
+sequences <- generate_sequences(train,
+                                validation,
+                                test,
+                                maxlen = maxlen,
+                                max_words = max_words)
+training_sequences <- sequences$train
+validation_sequences <- sequences$validation
+test_sequences <- sequences$test
+
+
+
+
+
+model <- load_model_hdf5('RNN_Models/LSTM_Tweets_with_Sarcasm/LSTM_Model.h5')
+predictions <- model$predict(test_sequences)
+predictions <- ifelse(predictions > .5, 1, 0)
+FP_Pie_Chart(Guesses = predictions, Labels = test_labels)
+
+```
+
 
