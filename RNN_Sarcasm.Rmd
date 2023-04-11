@@ -53,8 +53,11 @@ retrieve_dataset_ISarcasm <- function(Dir = Dir_ISarcasm, binary = FALSE) {
 
 
 retrieve_dataset <- function(Dir = 'Datasets/Tweets_with_Sarcasm_and_Irony', binary = FALSE) {
-  train <- read_csv(paste0(Dir,"/train.csv"))
-  test <- read_csv(paste0(Dir,"/test.csv"))
+  #train <- read_csv(paste0(Dir,"/train.csv"))
+  #test <- read_csv(paste0(Dir,"/test.csv"))
+  load('Datasets/Tweets_with_Sarcasm_and_Irony/test_w_hashtags.RData')
+  load('Datasets/Tweets_with_Sarcasm_and_Irony/train_w_hashtags.RData')
+  
   
   preprocessing <- function(data) {
     require('tm')
@@ -286,13 +289,13 @@ results
 
 ```
 
-<embed type="text/html" src="RNN_Models/LSTM_Tweets_with_Sarcasm/loss_acc.html" width="800" height="500">
+<embed type="text/html" src="RNN_Models/LSTM_Tweets_with_Sarcasm/loss_acc_2.html" width="800" height="500">
 
 
 
 ```{r eval=FALSE}
-save_model_hdf5(model, filepath = 'RNN_Models/LSTM_Tweets_with_Sarcasm/LSTM_Model.h5')
-save_text_tokenizer(sequences$tokenizer, filename = 'RNN_Models/LSTM_Tweets_with_Sarcasm/tokenizer')
+save_model_hdf5(model, filepath = 'RNN_Models/LSTM_Tweets_with_Sarcasm/LSTM_Model_2.h5')
+save_text_tokenizer(sequences$tokenizer, filename = 'RNN_Models/LSTM_Tweets_with_Sarcasm/tokenizer_2')
 
 ```
 
@@ -317,7 +320,7 @@ validation_labels <- sets$validation_labels
 test <- sets$test_set
 test_labels <- sets$test_labels
 
-tokenizer <- load_text_tokenizer('RNN_Models/LSTM_Tweets_with_Sarcasm/tokenizer') 
+tokenizer <- load_text_tokenizer('RNN_Models/LSTM_Tweets_with_Sarcasm/tokenizer_2') 
 
 sequences <- generate_sequences(train,
                                 validation,
@@ -335,7 +338,7 @@ test_sequences <- sequences$test
 
 
 
-model <- load_model_hdf5('RNN_Models/LSTM_Tweets_with_Sarcasm/LSTM_Model.h5')
+model <- load_model_hdf5('RNN_Models/LSTM_Tweets_with_Sarcasm/LSTM_Model_2.h5')
 predictions <- model$predict(test_sequences)
 predictions <- ifelse(predictions > .5, 1, 0)
 FP_Pie_Chart(Guesses = predictions, Labels = test_labels)
