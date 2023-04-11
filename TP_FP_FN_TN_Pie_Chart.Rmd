@@ -105,4 +105,140 @@ Accuracy_Label_Table(Labels = Labels,
 FP_Pie_Chart(Labels =  Labels,
              Guesses = Guesses)
 ```
+```{r}
+
+
+library('tidyverse')
+library('caret')
+library('keras')
+library("cowplot")
+library('grid')
+#library('ggrepel')
+
+
+Dir_Main <- 'Datasets/Tweets_with_Sarcasm_and_Irony'
+Dir_ISarcasm <- 'Datasets/ISarcasm'
+
+
+tensorflow::tf$python$client$device_lib$list_local_devices() %>% print()
+
+
+retrieve_dataset <- function(Dir = 'Datasets/Tweets_with_Sarcasm_and_Irony', binary = FALSE) {
+  train <- read_csv(paste0(Dir,"/train.csv"))
+  
+  
+  test <- read_csv(paste0(Dir,"/test.csv"))
+  test <- test %>% filter(!is.na(class))
+  
+  factor_set <- function(set) {
+    set$class[set$class == 'regular'] = 0
+    set$class[set$class == 'sarcasm'] = 1
+    
+    if(!binary) {
+      set$class[set$class == 'figurative'] = 2
+      set$class[set$class == 'irony'] = 3
+    } else {
+      set$class[set$class == 'figurative'] = 1
+      set$class[set$class == 'irony'] = 1
+    }
+    set
+  }
+  
+  
+  
+  
+  
+  
+  train <- factor_set(train)
+  test <- factor_set(test)
+  
+  index <- createDataPartition(train$class, p = .8, list = FALSE)
+  
+  train <- train[index,]
+  validation <- train[-index,]
+  
+  
+   
+  training_labels <- (train$class %>% as.array() %>% as.double()) #normalize
+  validation_labels <- (validation$class %>% as.array() %>% as.double()) #normalize
+  test_labels <-  (test$class %>% as.array() %>% as.double()) 
+  
+  
+  
+  list(train_set = train,
+       train_labels = training_labels,
+       test_set = test,
+       test_labels = test_labels,
+       validation_set = validation,
+       validation_labels = validation_labels)
+}
+
+
+sets <- retrieve_dataset(binary = TRUE)
+train <- sets$train_set
+
+
+
+
+x <- train$tweets
+y <- train$class
+
+
+
+n_folds <- 10
+counter_a = floor(train$class %>% length() / n_folds)
+
+i = 3
+
+
+
+#counter = counter_a
+#for (k in 1:n_folds) {
+  test <- x[counter_a * i:(counter_a * (i + 1))]
+  test_labels <- y[counter_a * i:(counter_a * (i + 1))]
+  
+  train <- x[-c(counter_a * i:(counter_a * (i + 1)))]
+  train_labels <- y[-c(counter_a * i:(counter_a * (i + 1)))]
+
+  
+  result <- list(train = train,
+                 train_labels = train_labels,
+                 test = test,
+                 test_labels = test_labels)
+
+  
+#}
+
+
+
+#i = 1
+
+
+
+
+
+
+
+
+
+#train <- sets$train_set
+
+
+#train <- train[-c(1:20),]
+
+#
+#crossvalidation <- function(data,labels,  n_folds){
+  
+  
+  
+  
+  
+
+
+
+
+
+
+
+```
 

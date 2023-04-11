@@ -14,9 +14,34 @@ library('grid')
 #library('ggrepel')
 
 
-Dir <- 'Datasets/Tweets_with_Sarcasm_and_Irony'
+Dir_Main <- 'Datasets/Tweets_with_Sarcasm_and_Irony'
+Dir_ISarcasm <- 'Datasets/ISarcasm'
+
 
 tensorflow::tf$python$client$device_lib$list_local_devices() %>% print()
+
+retrieve_dataset_ISarcasm <- function(Dir = Dir_ISarcasm, binary = FALSE) {
+  train <- read_csv(paste0(Dir,"/train.csv")) %>% rename(tweets = tweet, class = sarcastic)
+  test <- read_csv(paste0(Dir,"/test.csv")) %>% rename(tweets = tweet, class = sarcastic)
+  
+  
+  
+  
+
+  index <- createDataPartition(train$class, p = .8, list = FALSE)
+  
+  train <- train[index,]
+  validation <- train[-index,]
+  
+  list(train_set = train,
+       train_labels = training_labels,
+       test_set = test,
+       test_labels = test_labels,
+       validation_set = validation,
+       validation_labels = validation_labels)
+}
+
+
 
 retrieve_dataset <- function(Dir = 'Datasets/Tweets_with_Sarcasm_and_Irony', binary = FALSE) {
   train <- read_csv(paste0(Dir,"/train.csv"))
@@ -72,7 +97,8 @@ generate_sequences <- function(train_data,#training data
                                validation_data,# validation data
                                testing_data,
                                maxlen = 50,#maximum length of the embedding sequence
-                               max_words = 2000)#will only choose consider max_words amount of words for the embedding
+                               max_words = 2000,
+                               tokenizer = NULL)#will only choose consider max_words amount of words for the embedding
 {
   
  
@@ -80,10 +106,14 @@ generate_sequences <- function(train_data,#training data
   validation_text <- validation_data$tweets %>% as.array()#get the text
   testing_text <- testing_data$tweets %>% as.array()
   
-  tokenizer <- text_tokenizer(num_words = max_words) %>%#create and fit tokenizer
-  fit_text_tokenizer(training_text)
- 
   
+  if(is.null(tokenizer)) {
+    tokenizer <- text_tokenizer(num_words = max_words) %>%#create and fit tokenizer
+    fit_text_tokenizer(training_text)
+    print('creating Tokenizer.....')
+  } else {
+    print('found tokenizer!')
+  }
   
   sequences <- texts_to_sequences(tokenizer,training_text) #Translates text to sequences of integers(use the tokenizer$word_index to know which int maps to what word)
   training_sequences <- pad_sequences(sequences, maxlen = maxlen)#make all sequences the same length with the length being maxlen
@@ -100,9 +130,6 @@ generate_sequences <- function(train_data,#training data
        tokenizer = tokenizer
        )
 }
-
-
-sets <- retrieve_dataset(binary = TRUE)
 #-------------------------------------------------------------------------------------------------------------------
 Accuracy_Label_Table <- function (Labels, Guesses) {
   Value_P <- function(Label, Guess){
@@ -134,7 +161,8 @@ Accuracy_Label_Table <- function (Labels, Guesses) {
   group = c("True Negative (TN)", #Label = 0, Guess = 0
              "False Positive (FP)", #Label = 0, Guess = 1
              "False Negative (FN)", #Label = 1, Guess = 0
-             "True Positive (TP)" #Label = 1, Guess = 1
+
+"True Positive (TP)" #Label = 1, Guess = 1
              )
   value = c(TN_Count,
             FP_Count,
@@ -258,12 +286,16 @@ validation_labels <- sets$validation_labels
 test <- sets$test_set
 test_labels <- sets$test_labels
 
+tokenizer <- load_text_tokenizer('RNN_Models/LSTM_Tweets_with_Sarcasm/tokenizer') 
 
 sequences <- generate_sequences(train,
                                 validation,
                                 test,
                                 maxlen = maxlen,
-                                max_words = max_words)
+                                max_words = max_words,
+                                tokenizer = tokenizer)
+
+
 training_sequences <- sequences$train
 validation_sequences <- sequences$validation
 test_sequences <- sequences$test
@@ -280,4 +312,37 @@ FP_Pie_Chart(Guesses = predictions, Labels = test_labels)
 ```
 
 
+```{r}
+
+kfold <- function(x, y, n_folds, i) {
+  amount <- floor(length(x)/n_folds)
+  
+  train <- x[-c(i * amount : (i + 1) * amount)]
+  train_labels <- y[-c(i * amount: (i + 1) * amount)] 
+  
+  test <- x[i * amount: (i + 1) * amount] 
+  test_labels <- y[i * amount: (i + 1) * amount]
+  
+  
+  list(train = train,
+       train_labels = train_labels,
+       test = test,
+       test_labels = test_labels)
+  #test[c(i * amount: (i + 1) * amount)]
+}
+
+
+sets <- retrieve_dataset(binary = TRUE)
+x <- sets$test_set$tweets
+y <- sets$train_set$class
+
+
+library(dismo)
+
+
+
+
+
+
+```
 
