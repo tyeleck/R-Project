@@ -27,9 +27,12 @@ retrieve_dataset_ISarcasm <- function(Dir = Dir_ISarcasm, binary = FALSE) {
   
   preprocessing <- function(data) {
     require('tm')
+    
+    data$tweets <- data$tweets %>% sub(pattern = "@.* | @.*$", replacement = "")
     data$tweets <- tolower(data$tweets)
     data$tweets <- removePunctuation(data$tweets)
     data$tweets <- removeWords(data$tweets, words = stopwords('en'))
+    data$tweets <- data$tweets[data$tweets != ""]
     data
   }
   
