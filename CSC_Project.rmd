@@ -1,0 +1,186 @@
+---
+title: "CSC_project"
+author: "Dan Cona"
+date: "4/11/2023"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library('tm')
+library('pacman')
+test <- read.csv("Datasets/Tweets_with_Sarcasm_and_Irony/test.csv")
+train <- read.csv("Datasets/Tweets_with_Sarcasm_and_Irony/train.csv")
+
+create_train_test <- function(data, size = 0.8, train = TRUE) {
+  
+  #Shuffle Data
+  data <- data[sample(1:nrow(data)), ]
+  
+  
+  n_row = nrow(data)
+  total_row = size * n_row
+  train_sample <- 1: total_row
+  if (train == TRUE) {
+    return (data[train_sample, ])
+  } else {
+    return (data[-train_sample, ])
+  }
+}
+```
+
+
+
+```{r}
+
+#CSC Project
+pacman::p_load(datasets,pacman, dplyr, GGally, ggplot2, ggthemes, ggvis,
+               httr, lubridate, plotly, rio, rmarkdown, shiny,
+               stringr, tidyverse, lessR, aplpack, readr, tm, SnowballC, rpart.plot)
+
+#class and tweets
+#-----------------------------------------------------------------------------------------------------------------------------
+#Preprocessing train
+corpus <- Corpus(VectorSource(train$tweets))
+
+corpus <- tm_map(corpus,PlainTextDocument)
+corpus <- tm_map(corpus,tolower)
+corpus <- tm_map(corpus,removePunctuation)
+corpus <- tm_map(corpus,removeWords,stopwords("english"))
+corpus <- tm_map(corpus,stemDocument)
+
+freq <- DocumentTermMatrix(corpus)
+sparse <- removeSparseTerms(freq,.995)
+tSparse <- as.data.frame(as.matrix(sparse))
+colnames(tSparse) = make.names(colnames(tSparse))
+tSparse$class = train$class
+
+#Split the data
+trainSet <- create_train_test(tSparse,.8,train = T)
+testSet <- create_train_test(tSparse,.8,train = F)
+
+#Baseline 0.2608835  0.2566578  0.2284174  0.2540414
+prop.table(table(tSparse$class))
+#Make the Model
+fit <- rpart(class~., data = trainSet, method = "class")
+
+#Test model
+rpart.plot(fit)
+prediction <- predict(fit, testSet, type = "class")
+prediction
+
+#table_mat <- table(testSet$class, prediction)
+#accuracy_Test <- sum(diag(table_mat)) / sum(table_mat)
+#accuracy_Test
+
+mean(testSet$class == prediction)
+
+
+#Function
+
+
+
+
+
+```
+```{r}
+Accuracy_Label_Table <- function (Labels, Guesses) {
+  Value_P <- function(Label, Guess){
+  bin <- as.integer( #Returns int equivalent of binary value Label,Guess
+    strtoi(
+      paste0(Label * 10 + Guess), 
+      base = 2
+      )
+    )
+  
+    arr <- c("TN", #Label = 0, Guess = 0
+             "FP", #Label = 0, Guess = 1
+             "FN", #Label = 1, Guess = 0
+             "TP" #Label = 1, Guess = 1
+             )
+    return(arr[bin+1])
+  
+  
+  }
+  
+  result <- map2(.x = Labels, .y = Guesses,.f = Value_P) %>% unlist()
+
+  TN_Count <- result[result == "TN"] %>% length()
+  FP_Count <- result[result == "FP"] %>% length()
+  FN_Count <- result[result == "FN"] %>% length()
+  TP_Count <- result[result == "TP"] %>% length()
+  
+  
+  group = c("True Negative (TN)", #Label = 0, Guess = 0
+             "False Positive (FP)", #Label = 0, Guess = 1
+             "False Negative (FN)", #Label = 1, Guess = 0
+             "True Positive (TP)" #Label = 1, Guess = 1
+             )
+  value = c(TN_Count,
+            FP_Count,
+            FN_Count,
+            TP_Count)
+  
+  data.frame(group = group,
+             value = value)
+}
+#-------------------------------------------------------------------------------
+FP_Pie_Chart <- function(Labels, Guesses) {
+  require('cowplot')
+  require('ggrepel')
+  require('grid')
+  a_table <- Accuracy_Label_Table(Labels = Labels,
+                     Guesses = Guesses)
+
+  N_Acc <- round(a_table[1,2] / (a_table[1,2] + a_table[3,2]), digits = 4)
+  P_Acc <- round(a_table[4,2] / (a_table[4,2] + a_table[2,2]), digits = 4)
+  Acc <- round((a_table[1,2] + a_table[4,2]) / (a_table[1,2] + a_table[3,2] + a_table[4,2] + a_table[2,2]), digits = 4)
+  
+  plt <- a_table %>%
+    ggplot(aes(x = "", y = value, fill = group)) +
+    geom_col() + 
+    geom_label(aes(label = value),
+               position = position_stack(vjust = 0.5),
+               show.legend = FALSE) +
+    coord_polar(theta = "y") +
+    scale_fill_manual(values = c("#FFABAB", "#FFB092",
+                                 "#b4d4fa", "#BFFCC6"),
+                      guide = guide_legend(reverse = TRUE)) + 
+    ggtitle("TP, TN, FP, FN Pie Chart") +
+    theme_void()
+  
+  plt <- ggdraw(plt)
+  
+  plt <- plt +
+    annotation_custom(grob = textGrob(paste0("Accuracy Positive: ",P_Acc)),  xmin = 1 - .2, xmax = 1 - .2, ymin = 1 - .025, ymax = 1- .025) +
+    annotation_custom(grob = textGrob(paste0("Accuracy Negative: ",N_Acc)),  xmin = 1 - .2, xmax = 1 - .2, ymin = 1 - .025 - .05, ymax = 1- .025 - .05) +
+    annotation_custom(grob = textGrob(paste0("Total Accuracy: ",Acc)),  xmin = 1 - .2, xmax = 1 - .2, ymin = 1 - .025 - .1, ymax = 1- .025 - .1)
+  plt
+}
+
+
+
+
+
+prediction_binary <- prediction %>% as.character()
+
+prediction_binary[prediction_binary != 'regular'] = 1
+prediction_binary[prediction_binary == 'regular'] = 0
+
+
+testset_binary <- testSet$class
+
+testset_binary[testset_binary != 'regular'] = 1
+testset_binary[testset_binary == 'regular'] = 0
+
+
+
+FP_Pie_Chart(Labels = as.numeric(testset_binary),
+             Guesses = as.numeric(prediction_binary))
+
+
+
+
+
+
+```
+

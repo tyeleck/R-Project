@@ -25,8 +25,17 @@ retrieve_dataset_ISarcasm <- function(Dir = Dir_ISarcasm, binary = FALSE) {
   test <- read_csv(paste0(Dir,"/test.csv")) %>% rename(tweets = tweet, class = sarcastic)
   
   
+  preprocessing <- function(data) {
+    require('tm')
+    data$tweets <- tolower(data$tweets)
+    data$tweets <- removePunctuation(data$tweets)
+    data$tweets <- removeWords(data$tweets, words = stopwords('en'))
+    data
+  }
   
-  
+  train <- preprocessing(train)
+  test <- preprocessing(test)
+
 
   index <- createDataPartition(train$class, p = .8, list = FALSE)
   
@@ -45,9 +54,21 @@ retrieve_dataset_ISarcasm <- function(Dir = Dir_ISarcasm, binary = FALSE) {
 
 retrieve_dataset <- function(Dir = 'Datasets/Tweets_with_Sarcasm_and_Irony', binary = FALSE) {
   train <- read_csv(paste0(Dir,"/train.csv"))
-  
-  
   test <- read_csv(paste0(Dir,"/test.csv"))
+  
+  preprocessing <- function(data) {
+    require('tm')
+    data$tweets <- tolower(data$tweets)
+    data$tweets <- removePunctuation(data$tweets)
+    data$tweets <- removeWords(data$tweets, words = stopwords('en'))
+    data
+  }
+  
+  train <- preprocessing(train)
+  test <- preprocessing(test)
+  
+  
+  
   test <- test %>% filter(!is.na(class))
   
   factor_set <- function(set) {
@@ -206,11 +227,6 @@ FP_Pie_Chart <- function(Labels, Guesses) {
 
 ```
 
-```{r}
-test <- read_csv(paste0(Dir,"/test.csv"))
-train <- read_csv(paste0(Dir,"/train.csv"))
-```
-
 
 ```{r Simple RNN, eval=FALSE}
 max_words = 1000
@@ -269,6 +285,21 @@ results
 
 
 ```
+
+<embed type="text/html" src="RNN_Models/LSTM_Tweets_with_Sarcasm/loss_acc.html" width="800" height="500">
+
+
+
+```{r eval=FALSE}
+save_model_hdf5(model, filepath = 'RNN_Models/LSTM_Tweets_with_Sarcasm/LSTM_Model.h5')
+save_text_tokenizer(sequences$tokenizer, filename = 'RNN_Models/LSTM_Tweets_with_Sarcasm/tokenizer')
+
+```
+
+
+
+
+
 ```{r}
 max_words = 1000
 embedding_dim = 8
@@ -312,7 +343,7 @@ FP_Pie_Chart(Guesses = predictions, Labels = test_labels)
 ```
 
 
-```{r}
+```{r, eval=FALSE}
 
 kfold <- function(x, y, n_folds, i) {
   amount <- floor(length(x)/n_folds)
@@ -332,16 +363,9 @@ kfold <- function(x, y, n_folds, i) {
 }
 
 
-sets <- retrieve_dataset(binary = TRUE)
-x <- sets$test_set$tweets
-y <- sets$train_set$class
-
-
-library(dismo)
-
-
-
-
+#sets <- retrieve_dataset(binary = TRUE)
+#x <- sets$test_set$tweets
+#y <- sets$train_set$class
 
 
 ```

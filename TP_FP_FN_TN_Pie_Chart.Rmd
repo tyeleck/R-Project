@@ -58,6 +58,9 @@ Accuracy_Label_Table <- function (Labels, Guesses) {
 }
 #-------------------------------------------------------------------------------
 FP_Pie_Chart <- function(Labels, Guesses) {
+  require('cowplot')
+  require('ggrepel')
+  require('grid')
   a_table <- Accuracy_Label_Table(Labels = Labels,
                      Guesses = Guesses)
 

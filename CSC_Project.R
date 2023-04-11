@@ -1,9 +1,12 @@
+library('tm')
+library('pacman')
+
 #CSC Project
 pacman::p_load(datasets,pacman, dplyr, GGally, ggplot2, ggthemes, ggvis,
                httr, lubridate, plotly, rio, rmarkdown, shiny,
                stringr, tidyverse, lessR, aplpack, readr, tm, SnowballC, rpart.plot)
-test <- read.csv("D:/Software/R-4.2.2/RStudio/test.csv")
-train <- read.csv("D:/Software/R-4.2.2/RStudio/train.csv")
+test <- read.csv("Datasets/Tweets_with_Sarcasm_and_Irony/test.csv")
+train <- read.csv("Datasets/Tweets_with_Sarcasm_and_Irony/train.csv")
 #class and tweets
 #-----------------------------------------------------------------------------------------------------------------------------
 #Preprocessing train
@@ -43,6 +46,11 @@ accuracy_Test
 
 #Function
 create_train_test <- function(data, size = 0.8, train = TRUE) {
+  
+  #Shuffle Data
+  data <- data[sample(1:nrow(data)), ]
+  
+  
   n_row = nrow(data)
   total_row = size * n_row
   train_sample <- 1: total_row
