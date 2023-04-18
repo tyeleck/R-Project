@@ -11,10 +11,15 @@ library(ggplot2)
 library(tm)
 library(knitr)
 library(stringr)
+library('stopwords')
+#library('tidyverse')
+library('ggplot2')
+library('ggwordcloud')
 #library(keras)
 ```
 
 # Retrieve Data
+* The Dataset already has the train and test seperated so no need to do it manually
 ```{r Read_Data}
 Dir <- 'Datasets/Tweets_with_Sarcasm_and_Irony'
 train <- read_csv(paste0(Dir,"/train.csv"))
@@ -29,6 +34,7 @@ train$tweets <- map(train$tweets, .f = function(x){
 
 
 # Some Exploration
+* Shows how many observation exists for each dataset
 ```{r count rows, columns}
 classes <- train$class %>% unique()
 num_obs_train <- nrow(train)
@@ -38,13 +44,23 @@ Classes:  `r classes`<br>
 Number of observations in Train: `r num_obs_train`<br>
 Number of observations in Test: `r num_obs_test`<br>
 
+
+
+* Demonstrates the number of different classes exists
 ```{r}
 t <- train %>% group_by(class) %>% count()
 kable(t)
 ```
+
+
+* View the missing data, we consider empty strings as missing data aswell
 ```{r Missing Data}
 train %>% filter(tweets == "" | tweets == " " | is.na(tweets))
 ```
+
+
+
+*Visulaize tweet length range
 ```{r}
 tweet_lengths <- train$tweets %>% map(
               .f = function(x){
@@ -57,23 +73,19 @@ train_temp <- train %>% mutate(tweet_length = tweet_lengths,
 
 train_temp %>% ggplot(aes(x = tweet_lengths)) + 
   geom_bar(aes(fill = after_stat(count)))
-
-
-
-
 ```
+
+
+*Tweet length range visualized with box plot
 ```{r}
 train_temp %>% ggplot(aes(y = tweet_lengths)) + 
   geom_boxplot()
 ```
+*Tweet length range visualized with boxplot for each class
 ```{r}
 train_temp %>% ggplot(aes(x = class, y = tweet_lengths)) + 
   geom_boxplot()
 ```
-
-
-
-  
 
 
 Max tweet length: `r max(tweet_lengths)`<br>
@@ -88,6 +100,445 @@ kable(t)
 ```{r}
 t <- train_temp %>% filter(tweet_lengths == min(tweet_lengths))
 kable(t)
+```
+
+
+
+
+# Functions
+* Some functions for transformation, most notable, get_hashtags_df mutates hashtags from tweets into a new column.
+* Takes in a list of strings
+```{r Functions}
+#------------------------------------------------------------------------------
+#Function just so i don't loose my mind waiting for a function to finish
+#P: Makes sure function does not print the same percentage: initialize p = 0 
+#outside the loop
+#Length: How long the loop is
+#i: the iterator
+print_percent <- function(i, length, p) {
+  percent <- floor((i/length * 100))
+  if(percent %% 10 == 0 && p != percent){
+      print(paste0(percent,"% Complete"))
+      p = percent
+    }
+    return(p)
+}
+#------------------------------------------------------------------------------
+#Seperates hashtags from text
+#Takes in a column of text and returns a list of hash tags
+get_hashtags_df <- function(text) {
+  tweets <- text
+  tweets_separated <- tweets %>% str_split(pattern = " ")
+  y <- list()
+  p = 0
+  for (i in 1:length(tweets_separated)) {
+    hashtags <- list()
+    for(k in 1:length(tweets_separated[[i]])){
+      if(grepl(tweets_separated[[i]][k], pattern = "#.*")){
+        hashtags <- append(hashtags,tweets_separated[[i]][k])
+      }
+    }
+    #print(hashtags)
+    y <- append(y,list(hashtags))
+    #assign("y", y, envir = .GlobalEnv)
+    #print(y)
+    
+    
+    p = print_percent(i,length = length(tweets_separated), p = p)
+    #print()#," Percent complete")
+    
+   #print(tweets_separated[[i]])
+  }
+  y
+}
+```
+
+# Read in Data
+```{r Read In data}
+Dir <- 'Datasets/Tweets_with_Sarcasm_and_Irony'
+train <- read_csv(paste0(Dir,"/train.csv"))
+test <- read_csv(paste0(Dir,"/test.csv"))
+#test <- test %>% filter(!is.na(class))
+
+
+```
+
+
+
+
+# Separate Hashtags from text into a new column
+```{r Separate Hashtags from text, eval=FALSE}
+Dir <- 'Datasets/Tweets_with_Sarcasm_and_Irony'
+train <- read_csv(paste0(Dir,"/train.csv"))
+#tweets <- train$tweets
+y <- get_hashtags_df(train$tweets)
+train$tweets <- train$tweets %>% sub(pattern = "#.* | #.*$", replacement = "")
+train <- train %>% mutate(hashtags = y)
+#Note to load from disk use load("Datasets/train_w_hashtags.RData") in the markdown file
+save(train, file="Datasets/train_w_hashtags.RData")
+
+
+
+test <- read_csv(paste0(Dir,"/test.csv"))
+y <- get_hashtags_df(train$tweets)
+train$tweets <- train$tweets %>% sub(pattern = "#.* | #.*$", replacement = "")
+train <- train %>% mutate(hashtags = y)
+#Note to load from disk use load("Datasets/test_w_hashtags.RData") in the markdown file
+save(test, file="Datasets/test_w_hashtags.RData")
+```
+
+* Preprocessing function for cleaning tweet column
+```{r}
+preprocessing <- function(data) {
+    require('tm')
+    require('stopwords')
+    
+    data$tweets <- data$tweets %>% sub(pattern = "@.* | @.*$", replacement = "")
+    data$tweets <- tolower(data$tweets)
+    data$tweets <- removePunctuation(data$tweets)
+    data$tweets <- removeWords(data$tweets, words = stopwords('en'))
+    data <- data  %>% filter(tweets != "")
+    data
+}
+
+
+load('Datasets/Tweets_with_Sarcasm_and_Irony/train_w_hashtags.Rdata')
+train <- preprocessing(train)
+train[1:20,] %>% kable()
+```
+
+
+```{r}
+train$hashtags %>% head()
+```
+
+
+
+```{r load_dataset}
+train <- read.csv('Datasets/Tweets_with_Sarcasm_and_Irony/train.csv')
+test <- read.csv('Datasets/Tweets_with_Sarcasm_and_Irony/test.csv')
+
+```
+
+
+```{r echo=FALSE,eval=FALSE}
+words2pattern <- function(x) {
+  str = "\b("
+  for (i in 1:length(x)) {
+    if(i == length(x)) {
+      str <- paste0(str, x[i])
+    } else {
+      str <- paste0(str, x[i]) %>%
+      paste0("|")
+    }
+  }
+  str <- paste0(str,")\b")
+  str
+}
+
+
+stopwords_pattern <- words2pattern(stopwords())
+check_with_stopwords <- function(x) {
+  l = list()
+ # p = 0
+  for(i in x) {
+    for (k in stopwords()) {
+      if (i != k) {
+        l = append(l, i)
+      }
+     # p = print_percent(i,length = length(x), p = p)
+    }
+  }
+  return(l)
+}
+
+
+clean <- function(x) {
+  words=tolower(x)
+  words <- unlist(strsplit(words, " "))
+  words=words[!words %in% stopwords()]
+  paste(words, collapse = " ")
+}
+
+cleaned_df <- train$tweets %>%
+  map(.f = clean) %>% unlist()
+
+train$tweets <- cleaned_df
+
+
+```
+
+
+#Filter tweets with their classes
+```{r eval=TRUE}
+figurativeSet <- filter(train, class=="figurative")
+
+ironySet <- filter(train, class == "irony")
+
+sarcasmSet <- filter(train, class =="sarcasm")
+
+regularSet <- filter(train, class =="regular")
+
+
+not_regularSet <- filter(train, class != "regular")
+```
+#Collect the words and their frequencies from the set
+```{r eval=TRUE}
+freq_figurative <- as.data.frame(sort(table(unlist(strsplit(figurativeSet$tweets," "))), decreasing = TRUE), stringsAsFactors = FALSE)
+summary(freq_figurative)
+
+freq_irony <- as.data.frame(sort(table(unlist(strsplit(ironySet$tweets," "))), decreasing = TRUE), stringsAsFactors = FALSE)
+
+freq_sarcasm <- as.data.frame(sort(table(unlist(strsplit(sarcasmSet$tweets," "))), decreasing = TRUE), stringsAsFactors = FALSE)
+
+freq_regular <- as.data.frame(sort(table(unlist(strsplit(regularSet$tweets," "))), decreasing = TRUE), stringsAsFactors = FALSE)
+
+freq_not_regular <- as.data.frame(sort(table(unlist(strsplit(not_regularSet$tweets," "))), decreasing = TRUE), stringsAsFactors = FALSE)
+```
+
+#Key objects: frequency sets
+
+#make the word cloud of each list
+#Figurative word cloud
+#Since there's over 34,000 tibbles it wouldn't make a wordcloud due to the length in processing
+#So take a subset of the data where we select only the words with 100+ frequencies
+```{r eval=TRUE}
+
+dfSubsetFigurative <- subset(freq_figurative, Freq > 100, stringsAsFactors = FALSE)
+
+dfSubsetIrony <- subset(freq_irony, Freq > 100, stringsAsFactors = FALSE)
+
+dfSubsetSarcasm <- subset(freq_sarcasm, Freq > 100, stringsAsFactors = FALSE)
+
+dfSubsetRegular <- subset(freq_regular, Freq > 100, stringsAsFactors = FALSE)
+```
+
+
+#Now to make the wordcloud
+#Code: 
+```{r eval=TRUE}
+#figurative
+set.seed(42)
+ggplot(dfSubsetFigurative, aes(label = Var1, size = length(Var1), color = Var1)) +
+  geom_text_wordcloud_area(eccentricity = .35) +
+  scale_size_area(max_size = 24) +
+  theme_minimal() 
+
+#irony 
+set.seed(42)
+ggplot(dfSubsetIrony, aes(label = Var1, size = length(Var1), color = Var1)) +
+  geom_text_wordcloud_area(eccentricity = .35) +
+  scale_size_area(max_size = 24) +
+  theme_minimal() 
+
+#sarcasm
+set.seed(42)
+ggplot(dfSubsetSarcasm, aes(label = Var1, size = length(Var1), color = Var1)) +
+  geom_text_wordcloud_area(eccentricity = .35) +
+  scale_size_area(max_size = 24) +
+  theme_minimal() 
+
+#regular
+set.seed(42)
+ggplot(dfSubsetRegular, aes(label = Var1, size = length(Var1), color = Var1)) +
+  geom_text_wordcloud_area(eccentricity = .35) +
+  scale_size_area(max_size = 24) +
+  theme_minimal() 
+```
+
+```{r echo=FALSE}
+#library
+#train <- read_excel("D:\\OneDrive - SUNY Brockport\\Spring 2023-LAPTOP-4BPR9F3O\\Data Analysis\\Tweety Project\\trainXL.xlsx")
+
+#Filter tweets with their classes
+figurativeSet <- filter(train, class=="figurative")
+
+ironySet <- filter(train, class == "irony")
+
+sarcasmSet <- filter(train, class =="sarcasm")
+
+regularSet <- filter(train, class =="regular")
+#Collect the words and their frequencies from the set
+
+freq_figurative <- as.data.frame(sort(table(unlist(strsplit(figurativeSet$tweets," "))), decreasing = TRUE), stringsAsFactors = FALSE)
+
+freq_irony <- as.data.frame(sort(table(unlist(strsplit(ironySet$tweets," "))), decreasing = TRUE), stringsAsFactors = FALSE)
+
+freq_sarcasm <- as.data.frame(sort(table(unlist(strsplit(sarcasmSet$tweets," "))), decreasing = TRUE), stringsAsFactors = FALSE)
+
+freq_regular <- as.data.frame(sort(table(unlist(strsplit(regularSet$tweets," "))), decreasing = TRUE), stringsAsFactors = FALSE)
+
+
+#Key objects: frequency sets
+
+#make the word cloud of each list
+  #Figurative word cloud
+#Since there's over 34,000 tibbles it wouldn't make a word cloud due to the length in processing
+#So take a subset of the data where we select only the words with 100+ frequencies
+
+dfSubsetFigurative <- subset(freq_figurative, Freq > 100, stringsAsFactors = FALSE)
+
+dfSubsetIrony <- subset(freq_irony, Freq > 100, stringsAsFactors = FALSE)
+
+dfSubsetSarcasm <- subset(freq_sarcasm, Freq > 100, stringsAsFactors = FALSE)
+
+dfSubsetRegular <- subset(freq_regular, Freq > 100, stringsAsFactors = FALSE)
+
+#wordclouds
+
+#figurative
+set.seed(42)
+ggplot(dfSubsetFigurative, aes(label = Var1, size = length(Var1), color = Var1)) +
+  geom_text_wordcloud_area(eccentricity = .35) +
+  scale_size_area(max_size = 24) +
+  theme_minimal() 
+
+#irony 
+set.seed(42)
+ggplot(dfSubsetIrony, aes(label = Var1, size = length(Var1), color = Var1)) +
+  geom_text_wordcloud_area(eccentricity = .35) +
+  scale_size_area(max_size = 24) +
+  theme_minimal() 
+
+#sarcasm
+set.seed(42)
+ggplot(dfSubsetSarcasm, aes(label = Var1, size = length(Var1), color = Var1)) +
+  geom_text_wordcloud_area(eccentricity = .35) +
+  scale_size_area(max_size = 24) +
+  theme_minimal() 
+
+#regular
+set.seed(42)
+ggplot(dfSubsetRegular, aes(label = Var1, size = length(Var1), color = Var1)) +
+  geom_text_wordcloud_area(eccentricity = .35) +
+  scale_size_area(max_size = 24) +
+  theme_minimal() 
+
+```
+
+# Figurative Class Outiers
+```{r}
+ outlierSubsetFigurative <- subset(freq_figurative, Freq > 851, stringsAsFactors = FALSE)
+  outlierSubsetFigurative %>% 
+    ggplot(aes(x = reorder(Var1, order(Freq, decreasing = TRUE)), y = Freq)) +
+        geom_bar(stat = 'identity')  +
+          theme(axis.text.x = element_text(angle = 60, hjust = 1))
+```
+# Irony Class Outiers
+```{r}
+  outlierSubsetIrony <- subset(freq_irony, Freq > 851, stringsAsFactors = FALSE)
+  outlierSubsetIrony %>% 
+    ggplot(aes(x = reorder(Var1, order(Freq, decreasing = TRUE)), y = Freq)) +
+        geom_bar(stat = 'identity')  +
+          theme(axis.text.x = element_text(angle = 60, hjust = 1))
+```
+# Sarcasm Class Outiers
+```{r}
+  outlierSubsetSarcasm <- subset(freq_sarcasm, Freq > 851, stringsAsFactors = FALSE)
+  outlierSubsetSarcasm %>% 
+    ggplot(aes(x = reorder(Var1, order(Freq, decreasing = TRUE)), y = Freq)) +
+        geom_bar(stat = 'identity')  +
+          theme(axis.text.x = element_text(angle = 60, hjust = 1))
+```
+# Regular Class Outiers
+```{r}  
+  outlierSubsetRegular <- subset(freq_regular, Freq > 851, stringsAsFactors = FALSE)
+  outlierSubsetRegular %>% 
+    ggplot(aes(x = reorder(Var1, order(Freq, decreasing = TRUE)), y = Freq)) +
+        geom_bar(stat = 'identity')  +
+          theme(axis.text.x = element_text(angle = 60, hjust = 1))
+```
+
+
+
+```{r}
+
+frequencys <- full_join(freq_figurative,freq_irony, by = "Var1") %>%
+  full_join(freq_regular, by = "Var1") %>%
+  full_join(freq_sarcasm, by = "Var1") %>%
+  rename(figurative = Freq.x,
+         irony = Freq.y,
+         regular = Freq.x.x,
+         sarcasm = Freq.y.y)
+
+
+frequencys_2_class <-  full_join(freq_regular,freq_not_regular, by = "Var1") %>%
+   rename(regular = Freq.x,
+         not_regular = Freq.y)
+
+
+frequencys_2_class[frequencys_2_class == 0] <- 1
+frequencys_2_class[is.na(frequencys_2_class)] <- 1
+
+
+frequencys[frequencys == 0] <- 1
+frequencys[is.na(frequencys)] <- 1
+
+frequencys <- frequencys %>%
+  mutate(figurative_prop = figurative/(irony * regular * sarcasm)) %>%
+  mutate(irony_prop = irony/(figurative * regular * sarcasm)) %>%
+  mutate(sarcasm_prop = sarcasm/(figurative * regular * irony)) %>%
+  mutate(regular_prop = regular/(figurative * sarcasm * irony)) 
+
+
+frequencys_2_class <- frequencys_2_class %>% 
+  mutate(prop = regular/not_regular) %>%
+  mutate(inv_prop = not_regular/regular)
+
+
+
+max = 60
+#graph_freq <- function(df, max_entries = 60) {
+  frequencys %>% 
+  arrange(desc(regular_prop)) %>%
+  slice(1:max) %>%
+  ggplot(aes(y = regular_prop, x = reorder(Var1, order(regular_prop, decreasing = TRUE)))) +
+  geom_bar(stat='identity') +
+  theme(axis.text.x = element_text(angle = 60, hjust = 1))
+#}
+
+  frequencys_2_class %>% 
+  arrange(desc(prop)) %>%
+  slice(1:max) %>%
+  ggplot(aes(y = prop, x = reorder(Var1, order(prop, decreasing = TRUE)))) +
+  geom_bar(stat='identity') +
+  theme(axis.text.x = element_text(angle = 60, hjust = 1))
+
+  
+
+
+```
+
+```{r}
+
+
+max = 60
+frequencys_tmp_prop <- frequencys_2_class %>%
+  arrange(desc(prop)) %>%
+  slice(1:max)
+
+frequencys_tmp_inv_prop <- frequencys_2_class %>%
+  arrange(desc(inv_prop)) %>%
+  slice(1:max)
+
+
+ggplot(frequencys_tmp_prop, aes(label = Var1, size = prop)) +
+  geom_text_wordcloud_area(eccentricity = .54, color = 'red') +
+  #scale_size_area(max_size = 30) +
+  theme_minimal() +  
+  ggtitle ('Words found in tweets that are considered regular')
+
+ggplot(frequencys_tmp_inv_prop, aes(label = Var1, size = inv_prop)) +
+  geom_text_wordcloud_area(eccentricity = .54, color = 'blue') +
+  #scale_size_area(max_size = 30) +
+  theme_minimal() +  
+  ggtitle ('Words found in tweets that are not considered regular (irony, figurative, sarcasm)')
+  
+
+
+
+
+
 ```
 
 
