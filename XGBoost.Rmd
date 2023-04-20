@@ -14,8 +14,8 @@ install.packages("cowplot")
 library('xgboost')
 library('tm')
 library('pacman')
-test <- read.csv("C:/Users/Sweet Baby Jay/OneDrive/Documents/BoyScoutProject/R-Project/Datasets/Tweets_with_Sarcasm_and_Irony/train.csv")
-train <- read.csv("C:/Users/Sweet Baby Jay/OneDrive/Documents/BoyScoutProject/R-Project/Datasets/Tweets_with_Sarcasm_and_Irony/test.csv")
+test <- read.csv("Datasets/Tweets_with_Sarcasm_and_Irony/train.csv")
+train <- read.csv("Datasets/Tweets_with_Sarcasm_and_Irony/test.csv")
 create_train_test <- function(data_size, size = 0.8, train = TRUE) {
   set.seed(123) # Set seed for reproducibility
   
