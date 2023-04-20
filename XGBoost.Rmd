@@ -1,14 +1,12 @@
+---
 title: "XGBoost"
 author: "Jalen Illsley"
 date: "4/13/2023"
 output: html_document
 ---
 
-```{r setup, include=FALSE}
-install.packages("xgboost")
-install.packages("tm")
-install.packages("pacman")
-install.packages("cowplot")
+```{r setup, include=TRUE}
+
 
 
 library('xgboost')
