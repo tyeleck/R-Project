@@ -1,0 +1,119 @@
+---
+title: "Random Forest"
+output: html_document
+date: "2023-04-18"
+---
+
+## Random Forest 
+
+Below are the packages used to create this random forest model.
+
+```{r echo=TRUE}
+library(randomForest)
+library(datasets)
+library(caret)
+library(tidyverse)
+library(tm)
+library(rpart)
+library(rpart.plot)
+library(rattle)
+library(partykit)
+library(randomForestExplainer)
+library(tree)
+library(randomForestExplainer)
+library(kernlab)
+library(partykit)
+library(party)
+```
+
+Below is a snippet of the dataset used to train the model. It will be 80% train and 20% will be the testing model
+
+```{r echo=TRUE}
+train <- read.csv("D:/GitHub/R-Project/Datasets/Tweets_with_Sarcasm_and_Irony/train.csv")
+```
+
+From then, we will create a corpus which will be a collection of text in regards to the tweets from the dataset.
+
+```{r echo=TRUE}
+corpus <- Corpus(VectorSource(train$tweets))
+
+corpus <- tm_map(corpus,PlainTextDocument)
+corpus <- tm_map(corpus,tolower)
+corpus <- tm_map(corpus,removePunctuation)
+corpus <- tm_map(corpus,removeWords,stopwords("english"))
+corpus <- tm_map(corpus,stemDocument)
+```
+
+Now after obtaining the corpus, we will turn it into a matrice.
+
+```{r echo=TRUE}
+freq <- DocumentTermMatrix(corpus)
+sparse <- removeSparseTerms(freq,.995)
+tSparse <- as.data.frame(as.matrix(sparse))
+colnames(tSparse) = make.names(colnames(tSparse))
+tSparse$class = train$class
+```
+
+Then will split the data into an 80-20 ratio. 80% training and 20% testing.
+
+```{r eval=TRUE}
+   create_train_test <- function(data, size = 0.8, train = TRUE) 
+  {
+    #Shuffle Data
+    data <- data[sample(1:nrow(data)), ]
+  
+    n_row = nrow(data)
+    total_row = size * n_row
+    train_sample <- 1: total_row
+    if (train == TRUE) {
+       return (data[train_sample, ])
+    } else { 
+       return (data[-train_sample, ])
+    }
+   }
+
+  trainSet <- create_train_test(tSparse,.8,train = T)
+  testSet <- create_train_test(tSparse,.8,train = F)
+  
+```
+
+After that we can now make a random forest from the modified train set.
+
+```{r eval=TRUE}
+  
+#RandomForest
+trainSet$class = factor(trainSet$class)
+testSet$class = factor(testSet$class)
+trainSet$class <- na.omit(trainSet$class)
+set.seed(120)
+classifier_RF <- randomForest(class~.,trainSet, proximity=FALSE, ntree=150)
+```
+
+Accuracy Rate:
+
+```{r eval=TRUE}
+classifier_RF <- randomForest(class~.,trainSet, proximity=FALSE, ntree=150)
+print(classifier_RF)
+```
+
+Plot of the random forest created above.
+
+```{r echo=TRUE}
+set.seed(130)
+x <- ctree(class ~ ., data=trainSet, controls=cforest_control(mtry=2, mincriterion=0))
+plot(x, type="simple")
+```
+
+prediction and confusion matrix for train set
+
+```{r echo=TRUE}
+p1 <- predict(classifier_RF, trainSet)
+confusionMatrix(p1, trainSet$class)
+```
+
+prediction and confusion matrix with test data
+
+```{r echo=TRUE}
+p2 <- predict(classifier_RF, testSet)
+confusionMatrix(p2, testSet$class)
+```
