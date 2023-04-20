@@ -49,16 +49,17 @@ trainSet <- create_train_test(tSparse,.8,train = T)
 testSet <- create_train_test(tSparse,.8,train = F)
 trainSet$class = factor(trainSet$class)
 testSet$class = factor(testSet$class)
-trainSet$class
 trainSet$class <- ifelse(trainSet$class == "sarcasm", "sarcasm", "not sarcasm")
 testSet$class <- ifelse(testSet$class == "sarcasm", "sarcasm", "not sarcasm")
 vars_to_remove <- nearZeroVar(trainSet)
 trainSet <- trainSet[, -vars_to_remove]
-trainSet <- head(trainSet, 100)
+trainSet <- head(trainSet, 1000)
+view(trainSet)
 
 set.seed(130)
 model <- train(
   class~., data = trainSet, method = "svmRadial",
+  trControl = trainControl("cv", number = 10),
   preProcess = c("center", "scale"),
   tuneLength = 4
 )
