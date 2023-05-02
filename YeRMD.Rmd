@@ -1,6 +1,6 @@
 ---
-title: "Ye"
-author: "Stacey Do"
+title: "Support Vector Machine"
+author: "Duy Mach"
 date: "2023-04-20"
 output: html_document
 ---
@@ -29,9 +29,6 @@ train$class[train$class == "regular"] = 0
 train$class[train$class == "sarcasm"] = 1
 train$class[train$class == 'irony'] = 1
 train$class[train$class == 'figurative'] = 1
-#train$class[train$class != "regular"] = 1
-#train$class[train$class == "figurative"] = 1
-#train$class[train$class == "irony"] = 1
 train$class = as.factor(train$class)
 
 corpus <- Corpus(VectorSource(train$tweets))
@@ -48,9 +45,7 @@ colnames(tSparse) = make.names(colnames(tSparse))
 tSparse$class = train$class
 
 tSparse <- tSparse[sample(1:nrow(tSparse)), ]
-tSparse <- tSparse[1:100,]
-
-
+tSparse <- tSparse[1:1000,]
 ```
 
 ```{r  echo=TRUE}
@@ -151,51 +146,14 @@ FP_Pie_Chart <- function(Labels, Guesses) {
 
 
 ```{r  echo=TRUE}
-#Split the data for sarcasm
-set.seed(130)
-
-
-model <- train(
-  class~., data = tSparse, method = "svmRadial",
-  trControl = trainControl("cv", number = 10),
-  preProcess = c("center", "scale"),
-  tuneLength = 4
-)
-
-model$bestTune
-
-
-test <- train %>% remove
-
-
-model <- svm(class~., data = tSparse)
-
-predicted.classes <- model %>% predict(tSparse)
-mean(predicted.classes == tSparse$class)
-
-#model <- svm(class~., data = tSparse)
-#predictions <- predict(model, testSet)
-confusionMatrix(factor(predictions, levels = 2), factor(testSet$class, levels = 1:148))
-```
-
-```{r}
-FP_Pie_Chart(Labels = tSparse$class, Guesses = predicted.classes)
-```
-
-
-
-```{r  echo=TRUE}
-#Split the data for sarcasm
+#SVM Radial
 trainSet <- create_train_test(tSparse,.8,train = T)
 testSet <- create_train_test(tSparse,.8,train = F)
 trainSet$class = factor(trainSet$class)
 testSet$class = factor(testSet$class)
-trainSet$class <- ifelse(trainSet$class == "regular", "regular", "sarcastic")
-testSet$class <- ifelse(testSet$class == "regular", "regular", "sarcastic")
-vars_to_remove <- nearZeroVar(trainSet)
-#trainSet <- trainSet[, -vars_to_remove]
-trainSet <- head(trainSet, 1000)
+
 set.seed(130)
+
 model <- train(
   class~., data = trainSet, method = "svmRadial",
   trControl = trainControl("cv", number = 10),
@@ -208,10 +166,56 @@ model$bestTune
 predicted.classes <- model %>% predict(testSet)
 mean(predicted.classes == testSet$class)
 
-model <- svm(class~., data = tSparse, type = "C-classification")
-predictions <- predict(model, testSet)
-#predictions_possibilities <- predictions$posterior[,2]
-#predicted.classes <- predictions$class
-#observed.classes <- testSet$class
-confusionMatrix(factor(predictions, levels = 2), factor(testSet$class, levels = 1:148))
+predictions <- predict(model,testSet)
+confusionMatrix(predictions, testSet$class)
+```
+
+```{r  echo=TRUE}
+#SVM Linear
+trainSet <- create_train_test(tSparse,.8,train = T)
+testSet <- create_train_test(tSparse,.8,train = F)
+trainSet$class = factor(trainSet$class)
+testSet$class = factor(testSet$class)
+
+set.seed(131)
+
+model <- train(
+  class~., data = trainSet, method = "svmLinear",
+  trControl = trainControl("cv", number = 10),
+  tuneGrid = expand.grid(C = seq(0, 2, length = 20)),
+  preProcess = c("center", "scale")
+)
+
+model$bestTune
+
+predicted.classes <- model %>% predict(testSet)
+mean(predicted.classes == testSet$class)
+
+predictions <- predict(model,testSet)
+confusionMatrix(predictions, testSet$class)
+```
+
+```{r  echo=TRUE}
+#SVM Poly
+trainSet <- create_train_test(tSparse,.8,train = T)
+testSet <- create_train_test(tSparse,.8,train = F)
+trainSet$class = factor(trainSet$class)
+testSet$class = factor(testSet$class)
+
+set.seed(132)
+
+model <- train(
+  class~., data = trainSet, method = "svmPoly",
+  trControl = trainControl("cv", number = 10),
+  preProcess = c("center", "scale"),
+  tuneLength = 4
+)
+
+model$bestTune
+
+predicted.classes <- model %>% predict(testSet)
+mean(predicted.classes == testSet$class)
+
+predictions <- predict(model,testSet)
+confusionMatrix(predictions, testSet$class)
 ```
