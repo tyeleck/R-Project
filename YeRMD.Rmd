@@ -168,7 +168,7 @@ model$bestTune
 test <- train %>% remove
 
 
-model <- svm(class~., data = tSparse)
+#model <- svm(class~., data = tSparse)
 
 predicted.classes <- model %>% predict(tSparse)
 mean(predicted.classes == tSparse$class)
