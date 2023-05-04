@@ -4,7 +4,7 @@ author: "Group 5"
 date: '2023-04-27'
 output:
   html_document:
-    code_folding: show
+    code_folding: hide
   
 ---
 
@@ -282,8 +282,6 @@ train$tweets <- cleaned_df
 
 ```
 
--   
-
 ```{r eval=TRUE}
 figurativeSet <- filter(train, class=="figurative")
 
@@ -299,7 +297,7 @@ not_regularSet <- filter(train, class != "regular")
 
 -   Filter tweets with their classes
 
-```{r eval=TRUE}
+```{r eval=TRUE, class.source = 'fold-show'}
 freq_figurative <- as.data.frame(sort(table(unlist(strsplit(figurativeSet$tweets," "))), decreasing = TRUE), stringsAsFactors = FALSE)
 summary(freq_figurative)
 
@@ -318,7 +316,7 @@ freq_not_regular <- as.data.frame(sort(table(unlist(strsplit(not_regularSet$twee
 
 #### *Figurative* Class Outiers
 
-```{r class.source = 'fold-hide'}
+```{r }
  outlierSubsetFigurative <- subset(freq_figurative, Freq > 851, stringsAsFactors = FALSE)
   outlierSubsetFigurative %>% 
     ggplot(aes(x = reorder(Var1, order(Freq, decreasing = TRUE)), y = Freq)) +
@@ -473,7 +471,7 @@ train <- preprocessing(train)
 training_labels <- (train$class %>% as.array() %>% as.double()) 
 ```
 
-```{r functions, class.source = 'fold-hide'}
+```{r functions}
 
 Dir_Main <- 'Datasets/Tweets_with_Sarcasm_and_Irony'
 Dir_ISarcasm <- 'Datasets/ISarcasm'
@@ -1118,6 +1116,8 @@ predictions <- ifelse(predictions > .5, 1, 0)
 FP_Pie_Chart(Guesses = predictions, Labels = test_labels)
 
 ```
+
+
 ### SVM
 
 
