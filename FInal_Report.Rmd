@@ -2,7 +2,10 @@
 title: "Final Report"
 author: "Group 5"
 date: '2023-04-27'
-output: html_document
+output:
+  html_document:
+    code_folding: show
+  
 ---
 
 ```{r setup, include=FALSE}
@@ -10,11 +13,467 @@ library('tidyverse')
 library('caret')
 library('keras')
 library("cowplot")
-
-
+library('tm')
+library('knitr')
+library('stringr')
+library('stopwords')
+#library('tidyverse')
+library('ggplot2')
+library('ggwordcloud')
 library('grid')
 #library('ggrepel')
 
+
+Dir_Main <- 'Datasets/Tweets_with_Sarcasm_and_Irony'
+Dir_ISarcasm <- 'Datasets/ISarcasm'
+tensorflow::tf$python$client$device_lib$list_local_devices() %>% print()
+
+```
+
+# Visualizations {#visualizations}
+
+### Retrieve Data
+
+-   The Dataset already has the train and test separated so no need to do it manually
+
+```{r Read_Data}
+Dir <- 'Datasets/Tweets_with_Sarcasm_and_Irony'
+train <- read_csv(paste0(Dir,"/train.csv"))
+test <- read_csv(paste0(Dir,"/test.csv"))
+#test <- test %>% filter(!is.na(class))
+```
+
+```{r Text Transformation}
+#train$tweets <- map(train$tweets, .f = function(x){
+#  str_squish(x)
+#}) %>% unlist()
+```
+
+## Some Exploration
+
+-   Shows how many observation exists for each dataset
+
+```{r count rows, columns}
+classes <- train$class %>% unique()
+num_obs_train <- nrow(train)
+num_obs_test <- nrow(test)
+```
+
+Classes: `r classes`<br> Number of observations in Train: `r num_obs_train`<br> Number of observations in Test: `r num_obs_test`<br>
+
+-   Demonstrates the number of different classes exists
+
+```{r}
+t <- train %>% group_by(class) %>% count()
+kable(t)
+```
+
+-   View the missing data, we consider empty strings as missing data as well
+
+```{r Missing Data}
+train %>% filter(tweets == "" | tweets == " " | is.na(tweets))
+```
+
+-   Visualize tweet length range
+
+```{r class.source = 'fold-hide'}
+tweet_lengths <- train$tweets %>% map(
+              .f = function(x){
+  str_count(x, pattern = " ") + 1
+}) %>% unlist()
+
+ids <- 1:nrow(train)
+train_temp <- train %>% mutate(tweet_length = tweet_lengths,
+                               id = ids)
+
+train_temp %>% ggplot(aes(x = tweet_lengths)) + 
+  geom_bar(aes(fill = after_stat(count)))
+```
+
+-   Based on the graphic, it shows a normal distribution of tweet lengths
+-   Tweet length range visualized with box plot
+
+```{r}
+train_temp %>% ggplot(aes(y = tweet_lengths)) + 
+  geom_boxplot()
+```
+
+\*Tweet length range visualized with boxplot for each class
+
+```{r}
+train_temp %>% ggplot(aes(x = class, y = tweet_lengths)) + 
+  geom_boxplot()
+```
+
+Max tweet length: `r max(tweet_lengths)`<br> Min tweet length: `r min(tweet_lengths)`<br> Mean tweet length: `r mean(tweet_lengths)`<br>
+
+#### Max Tweet Length
+
+```{r}
+t <- train_temp %>% filter(tweet_lengths == max(tweet_lengths))
+kable(t)
+```
+
+#### Min Tweet Length
+
+```{r}
+t <- train_temp %>% filter(tweet_lengths == min(tweet_lengths))
+kable(t)
+```
+
+### Visualization/transformation Functions
+
+-   Some functions for transformation, most notable, get_hashtags_df mutates hashtags from tweets into a new column.
+-   Takes in a list of strings
+
+```{r Functions, class.source = 'fold-hide'}
+#------------------------------------------------------------------------------
+#Function just so i don't loose my mind waiting for a function to finish
+#P: Makes sure function does not print the same percentage: initialize p = 0 
+#outside the loop
+#Length: How long the loop is
+#i: the iterator
+print_percent <- function(i, length, p) {
+  percent <- floor((i/length * 100))
+  if(percent %% 10 == 0 && p != percent){
+      print(paste0(percent,"% Complete"))
+      p = percent
+    }
+    return(p)
+}
+#------------------------------------------------------------------------------
+#Seperates hashtags from text
+#Takes in a column of text and returns a list of hash tags
+get_hashtags_df <- function(text) {
+  tweets <- text
+  tweets_separated <- tweets %>% str_split(pattern = " ")
+  y <- list()
+  p = 0
+  for (i in 1:length(tweets_separated)) {
+    hashtags <- list()
+    for(k in 1:length(tweets_separated[[i]])){
+      if(grepl(tweets_separated[[i]][k], pattern = "#.*")){
+        hashtags <- append(hashtags,tweets_separated[[i]][k])
+      }
+    }
+    #print(hashtags)
+    y <- append(y,list(hashtags))
+    #assign("y", y, envir = .GlobalEnv)
+    #print(y)
+    
+    
+    p = print_percent(i,length = length(tweets_separated), p = p)
+    #print()#," Percent complete")
+    
+   #print(tweets_separated[[i]])
+  }
+  y
+}
+```
+
+### Read in Data
+
+```{r Read In data}
+Dir <- 'Datasets/Tweets_with_Sarcasm_and_Irony'
+train <- read_csv(paste0(Dir,"/train.csv"))
+test <- read_csv(paste0(Dir,"/test.csv"))
+#test <- test %>% filter(!is.na(class))
+
+
+```
+
+### Separate Hashtags from text into a new column
+
+```{r Separate Hashtags from text, eval=FALSE}
+Dir <- 'Datasets/Tweets_with_Sarcasm_and_Irony'
+train <- read_csv(paste0(Dir,"/train.csv"))
+#tweets <- train$tweets
+y <- get_hashtags_df(train$tweets)
+train$tweets <- train$tweets %>% sub(pattern = "#.* | #.*$", replacement = "")
+train <- train %>% mutate(hashtags = y)
+#Note to load from disk use load("Datasets/train_w_hashtags.RData") in the markdown file
+save(train, file="Datasets/train_w_hashtags.RData")
+
+
+
+test <- read_csv(paste0(Dir,"/test.csv"))
+y <- get_hashtags_df(train$tweets)
+train$tweets <- train$tweets %>% sub(pattern = "#.* | #.*$", replacement = "")
+train <- train %>% mutate(hashtags = y)
+#Note to load from disk use load("Datasets/test_w_hashtags.RData") in the markdown file
+save(test, file="Datasets/test_w_hashtags.RData")
+```
+
+-   Preprocessing function for cleaning tweet column
+
+```{r}
+preprocessing <- function(data) {
+    require('tm')
+    require('stopwords')
+    
+    data$tweets <- data$tweets %>% sub(pattern = "@.* | @.*$", replacement = "")
+    data$tweets <- tolower(data$tweets)
+    data$tweets <- removePunctuation(data$tweets)
+    data$tweets <- removeWords(data$tweets, words = stopwords('en'))
+    data <- data  %>% filter(tweets != "")
+    data
+}
+
+
+load('Datasets/Tweets_with_Sarcasm_and_Irony/train_w_hashtags.Rdata')
+train <- preprocessing(train)
+train[1:20,] %>% kable()
+```
+
+```{r}
+train$hashtags %>% head()
+```
+
+```{r load_dataset}
+train <- read.csv('Datasets/Tweets_with_Sarcasm_and_Irony/train.csv')
+test <- read.csv('Datasets/Tweets_with_Sarcasm_and_Irony/test.csv')
+
+```
+
+```{r echo=FALSE,eval=FALSE}
+words2pattern <- function(x) {
+  str = "\b("
+  for (i in 1:length(x)) {
+    if(i == length(x)) {
+      str <- paste0(str, x[i])
+    } else {
+      str <- paste0(str, x[i]) %>%
+      paste0("|")
+    }
+  }
+  str <- paste0(str,")\b")
+  str
+}
+
+
+stopwords_pattern <- words2pattern(stopwords())
+check_with_stopwords <- function(x) {
+  l = list()
+ # p = 0
+  for(i in x) {
+    for (k in stopwords()) {
+      if (i != k) {
+        l = append(l, i)
+      }
+     # p = print_percent(i,length = length(x), p = p)
+    }
+  }
+  return(l)
+}
+
+
+clean <- function(x) {
+  words=tolower(x)
+  words <- unlist(strsplit(words, " "))
+  words=words[!words %in% stopwords()]
+  paste(words, collapse = " ")
+}
+
+cleaned_df <- train$tweets %>%
+  map(.f = clean) %>% unlist()
+
+train$tweets <- cleaned_df
+
+
+```
+
+-   
+
+```{r eval=TRUE}
+figurativeSet <- filter(train, class=="figurative")
+
+ironySet <- filter(train, class == "irony")
+
+sarcasmSet <- filter(train, class =="sarcasm")
+
+regularSet <- filter(train, class =="regular")
+
+
+not_regularSet <- filter(train, class != "regular")
+```
+
+-   Filter tweets with their classes
+
+```{r eval=TRUE}
+freq_figurative <- as.data.frame(sort(table(unlist(strsplit(figurativeSet$tweets," "))), decreasing = TRUE), stringsAsFactors = FALSE)
+summary(freq_figurative)
+
+freq_irony <- as.data.frame(sort(table(unlist(strsplit(ironySet$tweets," "))), decreasing = TRUE), stringsAsFactors = FALSE)
+
+freq_sarcasm <- as.data.frame(sort(table(unlist(strsplit(sarcasmSet$tweets," "))), decreasing = TRUE), stringsAsFactors = FALSE)
+
+freq_regular <- as.data.frame(sort(table(unlist(strsplit(regularSet$tweets," "))), decreasing = TRUE), stringsAsFactors = FALSE)
+
+freq_not_regular <- as.data.frame(sort(table(unlist(strsplit(not_regularSet$tweets," "))), decreasing = TRUE), stringsAsFactors = FALSE)
+```
+
+-   Collect the words and their frequencies from the set
+
+## Outliers
+
+#### *Figurative* Class Outiers
+
+```{r class.source = 'fold-hide'}
+ outlierSubsetFigurative <- subset(freq_figurative, Freq > 851, stringsAsFactors = FALSE)
+  outlierSubsetFigurative %>% 
+    ggplot(aes(x = reorder(Var1, order(Freq, decreasing = TRUE)), y = Freq)) +
+        geom_bar(stat = 'identity')  +
+          theme(axis.text.x = element_text(angle = 60, hjust = 1))
+```
+
+#### *Irony* Class Outiers
+
+```{r class.source = 'fold-hide'}
+  outlierSubsetIrony <- subset(freq_irony, Freq > 851, stringsAsFactors = FALSE)
+  outlierSubsetIrony %>% 
+    ggplot(aes(x = reorder(Var1, order(Freq, decreasing = TRUE)), y = Freq)) +
+        geom_bar(stat = 'identity')  +
+          theme(axis.text.x = element_text(angle = 60, hjust = 1))
+```
+
+### *Sarcasm* Class Outiers
+
+```{r class.source = 'fold-hide'}
+  outlierSubsetSarcasm <- subset(freq_sarcasm, Freq > 851, stringsAsFactors = FALSE)
+  outlierSubsetSarcasm %>% 
+    ggplot(aes(x = reorder(Var1, order(Freq, decreasing = TRUE)), y = Freq)) +
+        geom_bar(stat = 'identity')  +
+          theme(axis.text.x = element_text(angle = 60, hjust = 1))
+```
+
+### *Regular* Class Outiers
+
+```{r class.source = 'fold-hide'}
+  outlierSubsetRegular <- subset(freq_regular, Freq > 851, stringsAsFactors = FALSE)
+  outlierSubsetRegular %>% 
+    ggplot(aes(x = reorder(Var1, order(Freq, decreasing = TRUE)), y = Freq)) +
+        geom_bar(stat = 'identity')  +
+          theme(axis.text.x = element_text(angle = 60, hjust = 1))
+```
+
+```{r}
+
+frequencys <- full_join(freq_figurative,freq_irony, by = "Var1") %>%
+  full_join(freq_regular, by = "Var1") %>%
+  full_join(freq_sarcasm, by = "Var1") %>%
+  rename(figurative = Freq.x,
+         irony = Freq.y,
+         regular = Freq.x.x,
+         sarcasm = Freq.y.y)
+
+
+frequencys_2_class <-  full_join(freq_regular,freq_not_regular, by = "Var1") %>%
+   rename(regular = Freq.x,
+         not_regular = Freq.y)
+
+
+frequencys_2_class[frequencys_2_class == 0] <- 1
+frequencys_2_class[is.na(frequencys_2_class)] <- 1
+
+
+frequencys[frequencys == 0] <- 1
+frequencys[is.na(frequencys)] <- 1
+
+frequencys <- frequencys %>%
+  mutate(figurative_prop = figurative/(irony * regular * sarcasm)) %>%
+  mutate(irony_prop = irony/(figurative * regular * sarcasm)) %>%
+  mutate(sarcasm_prop = sarcasm/(figurative * regular * irony)) %>%
+  mutate(regular_prop = regular/(figurative * sarcasm * irony)) 
+
+
+frequencys_2_class <- frequencys_2_class %>% 
+  mutate(prop = regular/not_regular) %>%
+  mutate(inv_prop = not_regular/regular)
+
+
+
+max = 60
+#graph_freq <- function(df, max_entries = 60) {
+  frequencys %>% 
+  arrange(desc(regular_prop)) %>%
+  slice(1:max) %>%
+  ggplot(aes(y = regular_prop, x = reorder(Var1, order(regular_prop, decreasing = TRUE)))) +
+  geom_bar(stat='identity') +
+  ggtitle("regular Outliers") +
+  theme(axis.text.x = element_text(angle = 60, hjust = 1))
+#}
+
+  frequencys_2_class %>% 
+  arrange(desc(prop)) %>%
+  slice(1:max) %>%
+  ggplot(aes(y = prop, x = reorder(Var1, order(prop, decreasing = TRUE)))) +
+  geom_bar(stat='identity') +
+  ggtitle("Not regular Outliers") +
+  theme(axis.text.x = element_text(angle = 60, hjust = 1))
+
+  
+
+
+```
+
+### ggwordcloud Visualization
+
+```{r}
+max = 60
+frequencys_tmp_prop <- frequencys_2_class %>%
+  arrange(desc(prop)) %>%
+  slice(1:max)
+
+frequencys_tmp_inv_prop <- frequencys_2_class %>%
+  arrange(desc(inv_prop)) %>%
+  slice(1:max)
+
+
+ggplot(frequencys_tmp_prop, aes(label = Var1, size = prop)) +
+  geom_text_wordcloud_area(eccentricity = .54, color = 'red') +
+  #scale_size_area(max_size = 30) +
+  theme_minimal() +  
+  ggtitle ('Words found in tweets that are considered regular')
+
+ggplot(frequencys_tmp_inv_prop, aes(label = Var1, size = inv_prop)) +
+  geom_text_wordcloud_area(eccentricity = .54, color = 'blue') +
+  #scale_size_area(max_size = 30) +
+  theme_minimal() +  
+  ggtitle ('Words found in tweets that are not considered regular (irony, figurative, sarcasm)')
+  
+
+
+
+
+
+```
+
+-   These two graphs demonstrates common words that are found in classes. The first graph demonstrates the regular class and the second demonstrates the irony, figurative and sarcasm class
+
+# Models {#models}
+
+## Results {.tabset}
+
+### RNN
+
+```{r}
+preprocessing <- function(data) {
+    require('tm')
+    
+    data$tweets <- data$tweets %>% sub(pattern = "@.* | @.*$", replacement = "")
+    data$tweets <- tolower(data$tweets)
+    data$tweets <- removePunctuation(data$tweets)
+    data$tweets <- removeWords(data$tweets, words = stopwords('en'))
+    #data$tweets <- data$tweets[data$tweets != ""]
+    data
+  }
+Dir = Dir_ISarcasm
+train <- read.csv(paste0(Dir,"/train.csv"), fileEncoding = 'utf-8')
+train <- preprocessing(train)
+training_labels <- (train$class %>% as.array() %>% as.double()) 
+```
+
+```{r functions, class.source = 'fold-hide'}
 
 Dir_Main <- 'Datasets/Tweets_with_Sarcasm_and_Irony'
 Dir_ISarcasm <- 'Datasets/ISarcasm'
@@ -22,16 +481,92 @@ Dir_ISarcasm <- 'Datasets/ISarcasm'
 
 tensorflow::tf$python$client$device_lib$list_local_devices() %>% print()
 
-```
 
+#-------------------------------------------------------------------
+even_out_observations <- function(data){
+  regular <- data %>% filter(class == 0)
+  sarcasm <- data %>% filter(class == 1)
+  #sarcasm$class = "sarcasm"
+  num_regular <- regular %>% nrow() 
+  sarcasm <- sarcasm[1:num_regular,]
+  data <- rbind(regular,sarcasm)
+  data <- data[sample(1:nrow(data)), ]
+  data
+}
 
-# Models
+#-------------------------------------------------------------------
+retrieve_dataset_ISarcasm <- function(Dir = Dir_ISarcasm, binary = FALSE) {
+  train <- read.csv(paste0(Dir,"/train.csv"), fileEncoding = 'utf-8')# %>% rename(tweets = tweet, class = sarcastic)
+  test <- read.csv(paste0(Dir,"/test.csv"),fileEncoding = 'utf-8') #%>% rename(tweets = tweet, class = sarcastic)
+  preprocessing <- function(data) {
+    require('tm')
+    
+    data$tweets <- data$tweets %>% sub(pattern = "@.* | @.*$", replacement = "")
+    data$tweets <- tolower(data$tweets)
+    data$tweets <- removePunctuation(data$tweets)
+    data$tweets <- removeWords(data$tweets, words = stopwords('en'))
+    #data$tweets <- data$tweets[data$tweets != ""]
+    data
+  }
+  
+  
+  train <- preprocessing(train)
+  test <- preprocessing(test)
 
+  factor_set <- function(set) {
+    set$class[set$class == 'regular'] = 0
+    set$class[set$class == 'sarcasm'] = 1
+    
+    if(!binary) {
+      set$class[set$class == 'figurative'] = 2
+      set$class[set$class == 'irony'] = 3
+    } else {
+      set$class[set$class == 'figurative'] = 1
+      set$class[set$class == 'irony'] = 1
+    }
+    set
+  }
 
-```{r RNN-Functions}
-retrieve_dataset <- function(Dir = 'Datasets/Tweets_with_Sarcasm_and_Irony', binary = FALSE) {
-  train <- read_csv(paste0(Dir,"/train.csv"))
-  test <- read_csv(paste0(Dir,"/test.csv"))
+  train <- factor_set(train)
+  test <- factor_set(test)
+
+  index <- createDataPartition(train$class, p = .8, list = FALSE)
+  
+  train <- train[index,]
+  validation <- train[-index,]
+  
+  
+  training_labels <- (train$class %>% as.array() %>% as.double()) #normalize
+  validation_labels <- (validation$class %>% as.array() %>% as.double()) #normalize
+  test_labels <-  (test$class %>% as.array() %>% as.double()) 
+  
+  
+  list(train_set = train,
+       train_labels = training_labels,
+       test_set = test,
+       test_labels = test_labels,
+       validation_set = validation,
+       validation_labels = validation_labels)
+}
+
+#-------------------------------------------------------------------
+#load('Datasets/Tweets_with_Sarcasm_and_Irony/test_w_hashtags.RData')
+retrieve_dataset <- function(Dir = 'Datasets/Tweets_with_Sarcasm_and_Irony', binary = FALSE, even_out = FALSE, without_hashtags = FALSE) {
+  
+  
+  if(!without_hashtags){
+    train <- read_csv(paste0(Dir,"/train.csv"))
+    test <- read_csv(paste0(Dir,"/test.csv"))
+  } else {
+    train <- read_csv(paste0(Dir,"/train_without_hashtags.csv"))
+    test <- read_csv(paste0(Dir,"/test_without_hashtags.csv"))
+  }
+  
+  #load('Datasets/Tweets_with_Sarcasm_and_Irony/test_w_hashtags.RData')
+  #load('Datasets/Tweets_with_Sarcasm_and_Irony/train_w_hashtags.RData')
+ # train <- read_csv(paste0(Dir,"/train_without_hashtags.csv"))
+  #test <- read_csv(paste0(Dir,"/test_without_hashtags.csv"))
+  
   
   preprocessing <- function(data) {
     require('tm')
@@ -61,16 +596,18 @@ retrieve_dataset <- function(Dir = 'Datasets/Tweets_with_Sarcasm_and_Irony', bin
     }
     set
   }
-  
   train <- factor_set(train)
   test <- factor_set(test)
   
   index <- createDataPartition(train$class, p = .8, list = FALSE)
-  
   train <- train[index,]
   validation <- train[-index,]
   
-  
+  if(even_out && binary){
+    train <- even_out_observations(train)
+    test <- even_out_observations(test)
+    validation <- even_out_observations(validation)
+  }
    
   training_labels <- (train$class %>% as.array() %>% as.double()) #normalize
   validation_labels <- (validation$class %>% as.array() %>% as.double()) #normalize
@@ -195,15 +732,68 @@ FP_Pie_Chart <- function(Labels, Guesses) {
     annotation_custom(grob = textGrob(paste0("Total Accuracy: ",Acc)),  xmin = 1 - .2, xmax = 1 - .2, ymin = 1 - .025 - .1, ymax = 1- .025 - .1)
   plt
 }
+#-------------------------------------------------------------------------------------------
+one_hot_encode <- function(train,validation,test, max_words, tokenizer = NA) {
+  
+  training_text <- train %>% as.array()
+  validation_text <- validation %>% as.array()
+  testing_text <- test %>% as.array()
+  
+  if(!is.na(tokenizer)){
+    tokenizer <- text_tokenizer(num_words = max_words) %>%
+    fit_text_tokenizer(training_text)
+  }
+  
+  train_one_hot_matrix <- texts_to_matrix(tokenizer, training_text, mode = "binary")#Translates text to a matrix of 0 or 1 where 0 == word NOT present and 1 == word present
+  #word_index <- tokenizer$word_index #The dictionary to translate a sequence to a sentence
+  validation_one_hot_matrix <- texts_to_matrix(tokenizer, validation_text, mode = "binary")
+  test_one_hot_matrix <- texts_to_matrix(tokenizer, testing_text, mode = "binary")
+  
+  list(train = train_one_hot_matrix,
+       valdiation = validation_one_hot_matrix,
+       test = test_one_hot_matrix,
+    tokenizer = tokenizer)
+}
+
 ```
 
-```{r LSTM}
+```{r one-hot encode, eval=FALSE, include=FALSE}
+training_text <- train$tweets %>% as.array()
+
+tokenizer <- text_tokenizer(num_words = max_words) %>%
+    fit_text_tokenizer(training_text)
+
+train_one_hot_matrix <- texts_to_matrix(tokenizer, training_text, mode = "binary")
+
+validation_text <- validation$tweets %>% as.array()
+  testing_text <- test$tweets %>% as.array()
+  
+  
+  validation_one_hot_matrix <- texts_to_matrix(tokenizer, validation_text, mode = "binary")
+  test_one_hot_matrix <- texts_to_matrix(tokenizer, testing_text, mode = "binary")
+  
+  
+  list(train = train_one_hot_matrix,
+       valdiation = validation_one_hot_matrix,
+       test = test_one_hot_matrix,
+    tokenizer = tokenizer)
+```
+
+#### Datasets {.tabset}
+
+
+##### Tweets with Sarcasm Data set with Hashtags
+
+* Click Code to show model code
+
+```{r LSTM, eval=FALSE, class.source = 'fold-hide'}
 max_words = 1000
 embedding_dim = 8
 maxlen = 50
 
 
-sets <- retrieve_dataset(binary = TRUE)
+sets <- retrieve_dataset(binary = TRUE
+                         )
 
 train <- sets$train_set
 training_labels <- sets$train_labels
@@ -213,6 +803,7 @@ validation_labels <- sets$validation_labels
 
 test <- sets$test_set
 test_labels <- sets$test_labels
+
 
 
 sequences <- generate_sequences(train,
@@ -228,6 +819,7 @@ model <-  keras_model_sequential() %>%
   layer_embedding(input_dim = max_words,
                   output_dim = embedding_dim,
                   input_length = maxlen) %>%
+  bidirectional(layer_lstm(units = 128, return_sequences = TRUE))%>%
   layer_lstm(units = 64, return_sequences = FALSE) %>%
   layer_flatten() %>%
   layer_dense(units = 1, 
@@ -250,12 +842,297 @@ history <- model %>% fit(
 
 results <- model %>% evaluate(test_sequences,test_labels)
 results
+
+
+
+```
+
+<embed type="text/html" src="RNN_Models/LSTM_Tweets_with_Sarcasm/loss_acc_Hashtags.html" width="800" height="500">
+
+###### Predictions and visualizing accuracy
+
+```{r, echo=FALSE}
+max_words = 1000
+embedding_dim = 8
+maxlen = 50
+
+
+sets <- retrieve_dataset(binary = TRUE)
+
+train <- sets$train_set
+training_labels <- sets$train_labels
+
+validation <- sets$validation_set
+validation_labels <- sets$validation_labels
+
+test <- sets$test_set
+test_labels <- sets$test_labels
+
+tokenizer <- load_text_tokenizer('RNN_Models/LSTM_Tweets_with_Sarcasm/tokenizer_Hashtags') 
+
+sequences <- generate_sequences(train,
+                                validation,
+                                test,
+                                maxlen = maxlen,
+                                max_words = max_words,
+                                tokenizer = tokenizer)
+
+
+training_sequences <- sequences$train
+validation_sequences <- sequences$validation
+test_sequences <- sequences$test
+
+
+
+
+
+model <- load_model_hdf5('RNN_Models/LSTM_Tweets_with_Sarcasm/LSTM_Model_Hashtags.h5')
+predictions <- model$predict(test_sequences)
+predictions <- ifelse(predictions > .5, 1, 0)
+FP_Pie_Chart(Guesses = predictions, Labels = test_labels)
+
 ```
 
 
 
+##### Tweets with Sarcasm Data set without Hashtags
+
+* Click Code to show the model code
+
+```{r LSTM_Without_Hastags, eval = FALSE, class.source = 'fold-hide'}
+max_words = 1000
+embedding_dim = 8
+maxlen = 50
+
+
+sets <- retrieve_dataset(binary = TRUE,
+                         without_hashtags = TRUE
+                         )
+
+train <- sets$train_set
+training_labels <- sets$train_labels
+
+validation <- sets$validation_set
+validation_labels <- sets$validation_labels
+
+test <- sets$test_set
+test_labels <- sets$test_labels
 
 
 
+sequences <- generate_sequences(train,
+                                validation,
+                                test,
+                                maxlen = maxlen,
+                                max_words = max_words)
+training_sequences <- sequences$train
+validation_sequences <- sequences$validation
+test_sequences <- sequences$test
+
+model <-  keras_model_sequential() %>%
+  layer_embedding(input_dim = max_words,
+                  output_dim = embedding_dim,
+                  input_length = maxlen) %>%
+  bidirectional(layer_lstm(units = 128, return_sequences = TRUE))%>%
+  layer_lstm(units = 64, return_sequences = FALSE) %>%
+  layer_flatten() %>%
+  layer_dense(units = 1, 
+              activation = "sigmoid") 
+
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "binary_crossentropy",
+  metrics = "accuracy"
+)
+
+history <- model %>% fit(
+  training_sequences,
+  training_labels,
+  epochs = 5,
+  batch_size = 128,
+  validation_data= list(validation_sequences,validation_labels)
+)
+
+
+results <- model %>% evaluate(test_sequences,test_labels)
+results
+
+```
+
+
+<embed type="text/html" src="RNN_Models/LSTM_Tweets_with_Sarcasm/loss_acc_no_Hashtags.html" width="800" height="500">
+
+###### Predictions and visualizing accuracy
+
+```{r, echo=FALSE}
+max_words = 1000
+embedding_dim = 8
+maxlen = 50
+
+
+sets <- retrieve_dataset(binary = TRUE, without_hashtags = TRUE)
+
+train <- sets$train_set
+training_labels <- sets$train_labels
+
+validation <- sets$validation_set
+validation_labels <- sets$validation_labels
+
+test <- sets$test_set
+test_labels <- sets$test_labels
+
+tokenizer <- load_text_tokenizer('RNN_Models/LSTM_Tweets_with_Sarcasm/tokenizer_no_Hashtags') 
+
+sequences <- generate_sequences(train,
+                                validation,
+                                test,
+                                maxlen = maxlen,
+                                max_words = max_words,
+                                tokenizer = tokenizer)
+
+
+training_sequences <- sequences$train
+validation_sequences <- sequences$validation
+test_sequences <- sequences$test
+
+
+
+
+
+model <- load_model_hdf5('RNN_Models/LSTM_Tweets_with_Sarcasm/LSTM_Model_no_Hashtags.h5')
+predictions <- model$predict(test_sequences)
+predictions <- ifelse(predictions > .5, 1, 0)
+FP_Pie_Chart(Guesses = predictions, Labels = test_labels)
+
+```
+
+
+
+##### ISarcasm
+
+* Click Code to show model code
+
+```{r LSTM_Isarcasm, eval=FALSE, class.source = 'fold-hide'}
+max_words = 1000
+embedding_dim = 8
+maxlen = 50
+
+
+sets <- retrieve_dataset_ISarcasm(binary = TRUE
+                         )
+
+train <- sets$train_set
+training_labels <- sets$train_labels
+
+validation <- sets$validation_set
+validation_labels <- sets$validation_labels
+
+test <- sets$test_set
+test_labels <- sets$test_labels
+
+
+
+sequences <- generate_sequences(train,
+                                validation,
+                                test,
+                                maxlen = maxlen,
+                                max_words = max_words)
+training_sequences <- sequences$train
+validation_sequences <- sequences$validation
+test_sequences <- sequences$test
+
+model <-  keras_model_sequential() %>%
+  layer_embedding(input_dim = max_words,
+                  output_dim = embedding_dim,
+                  input_length = maxlen) %>%
+  bidirectional(layer_lstm(units = 128, return_sequences = TRUE))%>%
+  layer_lstm(units = 64, return_sequences = FALSE) %>%
+  layer_flatten() %>%
+  layer_dense(units = 1, 
+              activation = "sigmoid") 
+
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "binary_crossentropy",
+  metrics = "accuracy"
+)
+
+history <- model %>% fit(
+  training_sequences,
+  training_labels,
+  epochs = 17,
+  batch_size = 128,
+  validation_data= list(validation_sequences,validation_labels)
+)
+
+
+results <- model %>% evaluate(test_sequences,test_labels)
+results
+
+
+
+```
+
+<embed type="text/html" src="RNN_Models/ISarcasm/loss_acc.html" width="800" height="500">
+
+###### Predictions and visualizing accuracy
+
+```{r, echo=FALSE}
+max_words = 1000
+embedding_dim = 8
+maxlen = 50
+
+
+sets <- retrieve_dataset_ISarcasm(binary = TRUE)
+
+train <- sets$train_set
+training_labels <- sets$train_labels
+
+validation <- sets$validation_set
+validation_labels <- sets$validation_labels
+
+test <- sets$test_set
+test_labels <- sets$test_labels
+
+tokenizer <- load_text_tokenizer('RNN_Models/ISarcasm/tokenizer') 
+
+sequences <- generate_sequences(train,
+                                validation,
+                                test,
+                                maxlen = maxlen,
+                                max_words = max_words,
+                                tokenizer = tokenizer)
+
+
+training_sequences <- sequences$train
+validation_sequences <- sequences$validation
+test_sequences <- sequences$test
+
+
+
+
+
+model <- load_model_hdf5('RNN_Models/ISarcasm/LSTM_Model.h5')
+predictions <- model$predict(test_sequences)
+predictions <- ifelse(predictions > .5, 1, 0)
+FP_Pie_Chart(Guesses = predictions, Labels = test_labels)
+
+```
+### SVM
+
+
+
+
+### Random Forest
+
+
+
+
+### Decision Trees
+
+
+
+
+### XgBoost
 
 

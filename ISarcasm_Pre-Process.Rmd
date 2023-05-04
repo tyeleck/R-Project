@@ -39,8 +39,8 @@ format_data <- function(data) {
 train <- format_data(train)
 test <- format_data(test)
 
-write.csv(train,'Datasets/ISarcasm/train.csv')
-write.csv(test,'Datasets/ISarcasm/test.csv')
+write.csv(train,'Datasets/ISarcasm/train.csv', fileEncoding = 'utf-8')
+write.csv(test,'Datasets/ISarcasm/test.csv', fileEncoding = 'utf-8')
 
 
 ```

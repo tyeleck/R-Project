@@ -86,9 +86,9 @@ save(train, file="Datasets/train_w_hashtags.RData")
 
 
 test <- read_csv(paste0(Dir,"/test.csv"))
-y <- get_hashtags_df(train$tweets)
-train$tweets <- train$tweets %>% sub(pattern = "#.* | #.*$", replacement = "")
-train <- train %>% mutate(hashtags = y)
+y <- get_hashtags_df(test$tweets)
+test$tweets <- test$tweets %>% sub(pattern = "#.* | #.*$", replacement = "")
+test <- test %>% mutate(hashtags = y)
 #Note to load from disk use load("Datasets/test_w_hashtags.RData") in the markdown file
 save(test, file="Datasets/test_w_hashtags.RData")
 ```
@@ -116,6 +116,13 @@ train[1:20,] %>% kable()
 ```{r}
 train$hashtags %>% head()
 
+```
+```{r}
+
+#load('E:/Github/R-Project/Datasets/test_w_hashtags.RData')
+#test <- test %>% select(tweets,class)
+
+write.csv(test, file = 'Datasets/Tweets_with_Sarcasm_and_Irony/test_without_hashtags.csv', fileEncoding = 'utf-8')
 ```
 
 

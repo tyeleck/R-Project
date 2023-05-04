@@ -5,6 +5,24 @@ date: "4/6/2023"
 output: html_document
 ---
 
+
+```{r}
+preprocessing <- function(data) {
+    require('tm')
+    
+    data$tweets <- data$tweets %>% sub(pattern = "@.* | @.*$", replacement = "")
+    data$tweets <- tolower(data$tweets)
+    data$tweets <- removePunctuation(data$tweets)
+    data$tweets <- removeWords(data$tweets, words = stopwords('en'))
+    #data$tweets <- data$tweets[data$tweets != ""]
+    data
+  }
+Dir = Dir_ISarcasm
+train <- read.csv(paste0(Dir,"/train.csv"), fileEncoding = 'utf-8')
+train <- preprocessing(train)
+training_labels <- (train$class %>% as.array() %>% as.double()) 
+```
+
 ```{r setup}
 library('tidyverse')
 library('caret')
@@ -13,6 +31,16 @@ library("cowplot")
 library('grid')
 #library('ggrepel')
 
+even_out_observations <- function(data){
+  regular <- data %>% filter(class == 0)
+  sarcasm <- data %>% filter(class == 1)
+  #sarcasm$class = "sarcasm"
+  num_regular <- regular %>% nrow() 
+  sarcasm <- sarcasm[1:num_regular,]
+  data <- rbind(regular,sarcasm)
+  data <- data[sample(1:nrow(data)), ]
+  data
+}
 
 Dir_Main <- 'Datasets/Tweets_with_Sarcasm_and_Irony'
 Dir_ISarcasm <- 'Datasets/ISarcasm'
@@ -21,8 +49,8 @@ Dir_ISarcasm <- 'Datasets/ISarcasm'
 tensorflow::tf$python$client$device_lib$list_local_devices() %>% print()
 
 retrieve_dataset_ISarcasm <- function(Dir = Dir_ISarcasm, binary = FALSE) {
-  train <- read_csv(paste0(Dir,"/train.csv")) %>% rename(tweets = tweet, class = sarcastic)
-  test <- read_csv(paste0(Dir,"/test.csv")) %>% rename(tweets = tweet, class = sarcastic)
+  train <- read.csv(paste0(Dir,"/train.csv"), fileEncoding = 'utf-8')# %>% rename(tweets = tweet, class = sarcastic)
+  test <- read.csv(paste0(Dir,"/test.csv"),fileEncoding = 'utf-8') #%>% rename(tweets = tweet, class = sarcastic)
   
   
   preprocessing <- function(data) {
@@ -32,18 +60,49 @@ retrieve_dataset_ISarcasm <- function(Dir = Dir_ISarcasm, binary = FALSE) {
     data$tweets <- tolower(data$tweets)
     data$tweets <- removePunctuation(data$tweets)
     data$tweets <- removeWords(data$tweets, words = stopwords('en'))
-    data$tweets <- data$tweets[data$tweets != ""]
+    #data$tweets <- data$tweets[data$tweets != ""]
     data
   }
   
   train <- preprocessing(train)
   test <- preprocessing(test)
 
+  
+   
+ 
+  
+  factor_set <- function(set) {
+    set$class[set$class == 'regular'] = 0
+    set$class[set$class == 'sarcasm'] = 1
+    
+    if(!binary) {
+      set$class[set$class == 'figurative'] = 2
+      set$class[set$class == 'irony'] = 3
+    } else {
+      set$class[set$class == 'figurative'] = 1
+      set$class[set$class == 'irony'] = 1
+    }
+    set
+  }
+  
+  
+  
+  
+  
+  
+  train <- factor_set(train)
+  test <- factor_set(test)
 
   index <- createDataPartition(train$class, p = .8, list = FALSE)
   
   train <- train[index,]
   validation <- train[-index,]
+  
+  
+  training_labels <- (train$class %>% as.array() %>% as.double()) #normalize
+  validation_labels <- (validation$class %>% as.array() %>% as.double()) #normalize
+  test_labels <-  (test$class %>% as.array() %>% as.double()) 
+  
   
   list(train_set = train,
        train_labels = training_labels,
@@ -54,12 +113,14 @@ retrieve_dataset_ISarcasm <- function(Dir = Dir_ISarcasm, binary = FALSE) {
 }
 
 
-
-retrieve_dataset <- function(Dir = 'Datasets/Tweets_with_Sarcasm_and_Irony', binary = FALSE) {
-  #train <- read_csv(paste0(Dir,"/train.csv"))
-  #test <- read_csv(paste0(Dir,"/test.csv"))
-  load('Datasets/Tweets_with_Sarcasm_and_Irony/test_w_hashtags.RData')
-  load('Datasets/Tweets_with_Sarcasm_and_Irony/train_w_hashtags.RData')
+#load('Datasets/Tweets_with_Sarcasm_and_Irony/test_w_hashtags.RData')
+retrieve_dataset <- function(Dir = 'Datasets/Tweets_with_Sarcasm_and_Irony', binary = FALSE, even_out = FALSE) {
+  train <- read_csv(paste0(Dir,"/train.csv"))
+  test <- read_csv(paste0(Dir,"/test.csv"))
+  #load('Datasets/Tweets_with_Sarcasm_and_Irony/test_w_hashtags.RData')
+  #load('Datasets/Tweets_with_Sarcasm_and_Irony/train_w_hashtags.RData')
+ # train <- read_csv(paste0(Dir,"/train_without_hashtags.csv"))
+  #test <- read_csv(paste0(Dir,"/test_without_hashtags.csv"))
   
   
   preprocessing <- function(data) {
@@ -99,10 +160,22 @@ retrieve_dataset <- function(Dir = 'Datasets/Tweets_with_Sarcasm_and_Irony', bin
   train <- factor_set(train)
   test <- factor_set(test)
   
+  
+  
+  
+  
   index <- createDataPartition(train$class, p = .8, list = FALSE)
   
   train <- train[index,]
   validation <- train[-index,]
+  
+  if(even_out && binary){
+    train <- even_out_observations(train)
+    test <- even_out_observations(test)
+    validation <- even_out_observations(validation)
+  }
+  
+  
   
   
    
@@ -229,12 +302,60 @@ FP_Pie_Chart <- function(Labels, Guesses) {
     annotation_custom(grob = textGrob(paste0("Total Accuracy: ",Acc)),  xmin = 1 - .2, xmax = 1 - .2, ymin = 1 - .025 - .1, ymax = 1- .025 - .1)
   plt
 }
-
+#-------------------------------------------------------------------------------------------
+one_hot_encode <- function(train,validation,test, max_words, tokenizer = NA) {
+  
+  training_text <- train %>% as.array()
+  validation_text <- validation %>% as.array()
+  testing_text <- test %>% as.array()
+  
+  if(!is.na(tokenizer)){
+    tokenizer <- text_tokenizer(num_words = max_words) %>%
+    fit_text_tokenizer(training_text)
+  }
+  
+  
+  train_one_hot_matrix <- texts_to_matrix(tokenizer, training_text, mode = "binary")#Translates text to a matrix of 0 or 1 where 0 == word NOT present and 1 == word present
+  #word_index <- tokenizer$word_index #The dictionary to translate a sequence to a sentence
+  validation_one_hot_matrix <- texts_to_matrix(tokenizer, validation_text, mode = "binary")
+  test_one_hot_matrix <- texts_to_matrix(tokenizer, testing_text, mode = "binary")
+  
+  list(train = train_one_hot_matrix,
+       valdiation = validation_one_hot_matrix,
+       test = test_one_hot_matrix,
+    tokenizer = tokenizer)
+}
 
 ```
 
 
-```{r Simple RNN, eval=FALSE}
+```{r}
+training_text <- train$tweets %>% as.array()
+
+tokenizer <- text_tokenizer(num_words = max_words) %>%
+    fit_text_tokenizer(training_text)
+
+train_one_hot_matrix <- texts_to_matrix(tokenizer, training_text, mode = "binary")
+
+validation_text <- validation$tweets %>% as.array()
+  testing_text <- test$tweets %>% as.array()
+  
+  
+  validation_one_hot_matrix <- texts_to_matrix(tokenizer, validation_text, mode = "binary")
+  test_one_hot_matrix <- texts_to_matrix(tokenizer, testing_text, mode = "binary")
+  
+  
+  list(train = train_one_hot_matrix,
+       valdiation = validation_one_hot_matrix,
+       test = test_one_hot_matrix,
+    tokenizer = tokenizer)
+```
+
+
+
+```{r baseline}
+
+
 max_words = 1000
 embedding_dim = 8
 maxlen = 50
@@ -252,6 +373,80 @@ test <- sets$test_set
 test_labels <- sets$test_labels
 
 
+
+
+training_text <- train$tweets %>% as.array()
+
+tokenizer <- text_tokenizer(num_words = max_words) %>%
+    fit_text_tokenizer(training_text)
+
+train_one_hot_matrix <- texts_to_matrix(tokenizer, training_text, mode = "binary")
+
+validation_text <- validation$tweets %>% as.array()
+  testing_text <- test$tweets %>% as.array()
+  
+  
+  validation_one_hot_matrix <- texts_to_matrix(tokenizer, validation_text, mode = "binary")
+  test_one_hot_matrix <- texts_to_matrix(tokenizer, testing_text, mode = "binary")
+  
+  
+  #train = train_one_hot_matrix
+  #valdiation = validation_one_hot_matrix
+  #test = test_one_hot_matrix
+  tokenizer = tokenizer
+
+
+training_sequences <- train_one_hot_matrix
+validation_sequences <- validation_one_hot_matrix
+test_sequences <- test_one_hot_matrix
+
+model <-  keras_model_sequential() %>%
+  layer_dense(units = 32) %>%
+  layer_dense(units = 1, 
+              activation = "sigmoid") 
+
+model %>% compile(
+  optimizer = "rmsprop",
+  loss = "binary_crossentropy",
+  metrics = "accuracy"
+)
+
+history <- model %>% fit(
+  training_sequences,
+  training_labels,
+  epochs = 5,
+  batch_size = 128,
+  validation_data= list(validation_sequences,validation_labels)
+)
+
+
+results <- model %>% evaluate(test_sequences,test_labels)
+results
+
+
+```
+
+
+```{r Simple RNN, eval=FALSE}
+max_words = 1000
+embedding_dim = 8
+maxlen = 50
+
+
+sets <- retrieve_dataset(binary = TRUE
+                         )
+
+train <- sets$train_set
+training_labels <- sets$train_labels
+
+validation <- sets$validation_set
+validation_labels <- sets$validation_labels
+
+test <- sets$test_set
+test_labels <- sets$test_labels
+
+
+
 sequences <- generate_sequences(train,
                                 validation,
                                 test,
@@ -265,6 +460,7 @@ model <-  keras_model_sequential() %>%
   layer_embedding(input_dim = max_words,
                   output_dim = embedding_dim,
                   input_length = maxlen) %>%
+  bidirectional(layer_lstm(units = 128, return_sequences = TRUE))%>%
   layer_lstm(units = 64, return_sequences = FALSE) %>%
   layer_flatten() %>%
   layer_dense(units = 1, 
@@ -305,6 +501,13 @@ save_text_tokenizer(sequences$tokenizer, filename = 'RNN_Models/LSTM_Tweets_with
 
 
 
+```{r}
+predictions <- model$predict(test_sequences)
+predictions <- ifelse(predictions > .5, 1, 0)
+FP_Pie_Chart(Guesses = predictions, Labels = test_labels)
+```
+
+
 
 ```{r}
 max_words = 1000
@@ -312,7 +515,7 @@ embedding_dim = 8
 maxlen = 50
 
 
-sets <- retrieve_dataset(binary = TRUE)
+sets <- retrieve_dataset_ISarcasm(binary = TRUE)
 
 train <- sets$train_set
 training_labels <- sets$train_labels

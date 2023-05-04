@@ -257,7 +257,7 @@ params <- list(
 fit <- xgb.train(params,
                  data = trainSet,
                  nrounds = 100,
-                 watchlist = list(test = testSet),
+                 watchlist = list(test = trainSet),
                  early_stopping_rounds = 10,
                  maximize = FALSE,
                  print_every_n = 10
