@@ -5,8 +5,18 @@ date: '2023-04-27'
 output:
   html_document:
     code_folding: hide
-  
 ---
+<p style='margin-top:0in;margin-right:.2in;margin-bottom:8.0pt;margin-left:.2in;line-height:normal;font-size:15px;font-family:"Calibri",sans-serif;text-align:center;'><strong><span style="font-size:27px;">Abstract</span></strong></p>
+<p style='margin-top:0in;margin-right:.2in;margin-bottom:8.0pt;margin-left:.2in;line-height:normal;font-size:15px;font-family:"Calibri",sans-serif;text-indent:.5in;'><span style="font-size:16px;">When using datasets gathered from mediums designed for casual conversation such as twitter, the problem with these datasets is the large amount of sarcasm present in these datasets. With sarcasm being difficult to detect by humans and Natural Language processing models this can hinder the model&rsquo;s accuracy. As a result, we hoped to create an NLP model specifically designed to detect sarcasm for other NLP models. To do this, two datasets will be utilized, <em>ISarcasm</em> and <em>Tweets with Sarcasm and Irony</em>. In addition, these datasets will be trained on with five different models; <em>Recurrent Neural Networks (RNN), Support Vector Machine (SVM), Random Forests, Decision Trees,</em> and <em>XGboost</em>. By combining our model with other NLP models, we hope to increase the accuracy of these models.&nbsp;</span></p>
+<p style='margin-top:0in;margin-right:.2in;margin-bottom:8.0pt;margin-left:.2in;line-height:107%;font-size:15px;font-family:"Calibri",sans-serif;text-align:center;'><strong><span style="font-size:27px;line-height:107%;">Dataset</span></strong></p>
+<ul style="list-style-type: disc;margin-left:-0.3in;">
+    <li><span style="line-height:106%;font-family:Calibri;font-size:16px;">The dataset, <em>Tweets with Sarcasm and Irony</em>, contains one column of random tweets across the social media platform Twitter that is categorized into 4 classes: irony, sarcasm, figurative (both irony and sarcasm), and regular. The dataset consists of 2 files: train.csv and test.csv. Both files share the same columns and classes with different values. The collection being used in the data set is the tweepy package which is Twitter API and tweepy to collect tweets using respective tweet IDs. Social media nowadays is hard to interpret the emotional display of posts of comments so with this dataset we plan to turn it into insightful information by exploring potential insights that we can gather.&nbsp;</span></li>
+    <li><span style="line-height:106%;font-family:Calibri;font-size:16px;">With this dataset, we convert it into two files:&nbsp;</span><span style="line-height:106%;font-family:Calibri;font-size:16px;"><em>Tweets with hashtags, T</em></span><span style="line-height:106%;font-family:Calibri;font-size:16px;"><em>weets without hashtags</em></span></li>
+    <li><span style="line-height:106%;font-family:Calibri;font-size:16px;">This is done because hashtags will cause the model to overfit to the dataset as seen with our results.</span></li>
+    <li><span style="line-height:106%;font-family:Calibri;font-size:16px;">The other dataset we use is <em>ISarcasm</em>. ISarcasm is a dataset designed specifically for training a model without the bias found in many sarcasm datasets</span></li>
+    <li><span style="line-height:106%;font-family:Calibri;font-size:16px;">Links:&nbsp;</span><span style="line-height:106%;font-family:Calibri;font-size:16px;">ISarcasm: <a data-fr-linked="true" href="https://paperswithcode.com/dataset/isarcasm,">https://paperswithcode.com/dataset/isarcasm,</a>&nbsp;</span><span style="line-height:106%;font-family:Calibri;font-size:16px;">Tweets with Sarcasm and Irony: https://www.kaggle.com/datasets/nikhiljohnk/tweets-with-sarcasm-and-irony</span></li>
+</ul>
+
 
 ```{r setup, include=FALSE}
 library('tidyverse')
@@ -779,10 +789,9 @@ validation_text <- validation$tweets %>% as.array()
 
 #### Datasets {.tabset}
 
-
 ##### Tweets with Sarcasm Data set with Hashtags
 
-* Click Code to show model code
+-   Click Code to show model code
 
 ```{r LSTM, eval=FALSE, class.source = 'fold-hide'}
 max_words = 1000
@@ -891,11 +900,9 @@ FP_Pie_Chart(Guesses = predictions, Labels = test_labels)
 
 ```
 
-
-
 ##### Tweets with Sarcasm Data set without Hashtags
 
-* Click Code to show the model code
+-   Click Code to show the model code
 
 ```{r LSTM_Without_Hastags, eval = FALSE, class.source = 'fold-hide'}
 max_words = 1000
@@ -957,7 +964,6 @@ results
 
 ```
 
-
 <embed type="text/html" src="RNN_Models/LSTM_Tweets_with_Sarcasm/loss_acc_no_Hashtags.html" width="800" height="500">
 
 ###### Predictions and visualizing accuracy
@@ -1004,11 +1010,9 @@ FP_Pie_Chart(Guesses = predictions, Labels = test_labels)
 
 ```
 
-
-
 ##### ISarcasm
 
-* Click Code to show model code
+-   Click Code to show model code
 
 ```{r LSTM_Isarcasm, eval=FALSE, class.source = 'fold-hide'}
 max_words = 1000
@@ -1117,22 +1121,10 @@ FP_Pie_Chart(Guesses = predictions, Labels = test_labels)
 
 ```
 
-
 ### SVM
-
-
-
 
 ### Random Forest
 
-
-
-
 ### Decision Trees
 
-
-
-
 ### XgBoost
-
-
