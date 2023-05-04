@@ -6,6 +6,8 @@ output:
   html_document:
     code_folding: hide
 ---
+
+
 <p style='margin-top:0in;margin-right:.2in;margin-bottom:8.0pt;margin-left:.2in;line-height:normal;font-size:15px;font-family:"Calibri",sans-serif;text-align:center;'><strong><span style="font-size:27px;">Abstract</span></strong></p>
 <p style='margin-top:0in;margin-right:.2in;margin-bottom:8.0pt;margin-left:.2in;line-height:normal;font-size:15px;font-family:"Calibri",sans-serif;text-indent:.5in;'><span style="font-size:16px;">When using datasets gathered from mediums designed for casual conversation such as twitter, the problem with these datasets is the large amount of sarcasm present in these datasets. With sarcasm being difficult to detect by humans and Natural Language processing models this can hinder the model&rsquo;s accuracy. As a result, we hoped to create an NLP model specifically designed to detect sarcasm for other NLP models. To do this, two datasets will be utilized, <em>ISarcasm</em> and <em>Tweets with Sarcasm and Irony</em>. In addition, these datasets will be trained on with five different models; <em>Recurrent Neural Networks (RNN), Support Vector Machine (SVM), Random Forests, Decision Trees,</em> and <em>XGboost</em>. By combining our model with other NLP models, we hope to increase the accuracy of these models.&nbsp;</span></p>
 <p style='margin-top:0in;margin-right:.2in;margin-bottom:8.0pt;margin-left:.2in;line-height:107%;font-size:15px;font-family:"Calibri",sans-serif;text-align:center;'><strong><span style="font-size:27px;line-height:107%;">Dataset</span></strong></p>
@@ -16,6 +18,8 @@ output:
     <li><span style="line-height:106%;font-family:Calibri;font-size:16px;">The other dataset we use is <em>ISarcasm</em>. ISarcasm is a dataset designed specifically for training a model without the bias found in many sarcasm datasets</span></li>
     <li><span style="line-height:106%;font-family:Calibri;font-size:16px;">Links:&nbsp;</span><span style="line-height:106%;font-family:Calibri;font-size:16px;">ISarcasm: <a data-fr-linked="true" href="https://paperswithcode.com/dataset/isarcasm,">https://paperswithcode.com/dataset/isarcasm,</a>&nbsp;</span><span style="line-height:106%;font-family:Calibri;font-size:16px;">Tweets with Sarcasm and Irony: https://www.kaggle.com/datasets/nikhiljohnk/tweets-with-sarcasm-and-irony</span></li>
 </ul>
+
+
 
 
 ```{r setup, include=FALSE}
