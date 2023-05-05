@@ -1248,3 +1248,896 @@ create_train_test <- function(data, size = 0.8, train = TRUE) {
 ```
 
 ### XgBoost
+
+### Tweets with Sarcasm with Hashtags(regular, sarcasm, figurative, irony)
+
+
+```{r setup, include=TRUE}
+
+
+
+library('xgboost')
+library('tm')
+library('pacman')
+library('tidyverse')
+test <- read.csv("Datasets/Tweets_with_Sarcasm_and_Irony/test.csv")
+train <- read.csv("Datasets/Tweets_with_Sarcasm_and_Irony/train.csv")
+train <- train %>% filter(class!="")
+create_train_test <- function(data_size, size = 0.8, train = TRUE) {
+  set.seed(123) # Set seed for reproducibility
+  
+  # Create shuffled indices
+  shuffled_indices <- sample(1:data_size)
+  
+  # Calculate the number of rows for the train set
+  train_rows <- round(size * data_size)
+  
+  if (train == TRUE) {
+    return (shuffled_indices[1:train_rows])
+  } else {
+    return (shuffled_indices[(train_rows + 1):data_size])
+  }
+}
+
+#CSC Project
+pacman::p_load(datasets,pacman, dplyr, GGally, ggplot2, ggthemes, ggvis,
+               httr, lubridate, plotly, rio, rmarkdown, shiny,
+               stringr, tidyverse, lessR, aplpack, readr, tm, SnowballC, rpart.plot)
+#class and tweets
+#-----------------------------------------------------------------------------------------------------------------------------
+#Preprocessing train
+corpus <- Corpus(VectorSource(train$tweets))
+corpus <- tm_map(corpus,PlainTextDocument)
+corpus <- tm_map(corpus,tolower)
+corpus <- tm_map(corpus,removePunctuation)
+corpus <- tm_map(corpus,removeWords,stopwords("english"))
+corpus <- tm_map(corpus,stemDocument)
+freq <- DocumentTermMatrix(corpus)
+sparse <- removeSparseTerms(freq,.995)
+tSparse <- as.data.frame(as.matrix(sparse))
+colnames(tSparse) = make.names(colnames(tSparse))
+tSparse$class = train$class
+
+#Prepare data for XGBoost
+train_indices <- create_train_test(nrow(tSparse), 0.8, train = TRUE)
+test_indices <- create_train_test(nrow(tSparse), 0.8, train = FALSE)
+
+tSparse$class <- as.factor(tSparse$class)
+tSparse$class <- as.numeric(tSparse$class) - 1
+
+trainSet <- xgb.DMatrix(data.matrix(tSparse[train_indices, -ncol(tSparse)]), label = tSparse$class[train_indices])
+testSet <- xgb.DMatrix(data.matrix(tSparse[test_indices, -ncol(tSparse)]), label = tSparse$class[test_indices])
+
+#Set up XGBoost parameters
+params <- list(
+  objective = "binary:logistic",
+  eval_metric = "error"
+)
+
+#Train the XGBoost model
+unique(tSparse$class)
+
+num_classes <- length(unique(tSparse$class))
+
+params <- list(
+  objective = "multi:softprob",
+  eval_metric = "mlogloss",
+  num_class = num_classes,
+  eta = 0.3,
+  max_depth = 6,
+  min_child_weight = 1,
+  subsample = 1,
+  colsample_bytree = 1,
+  gamma = 0
+)
+
+fit <- xgb.train(params,
+                 data = trainSet,
+                 nrounds = 100,
+                 watchlist = list(test = testSet),
+                 early_stopping_rounds = 10,
+                 maximize = FALSE,
+                 print_every_n = 10
+)
+
+#Predict the test set
+prediction_prob <- predict(fit, testSet, output_margin = TRUE)
+prediction <- matrix(prediction_prob, ncol = num_classes, byrow = TRUE)
+prediction <- max.col(prediction) - 1
+
+true_labels <- tSparse$class[test_indices]
+mean(true_labels == prediction)
+
+Confusion_Matrix <- function (Labels, Guesses) {
+  Value_P <- function(Label, Guess){
+    bin <- as.integer( #Returns int equivalent of binary value Label,Guess
+      strtoi(
+        paste0(Label * 10 + Guess), 
+        base = 2
+        )
+      )
+    
+      arr <- c("TN",
+               "FP", #Label = 0, Guess = 1
+               "FN", #Label = 1, Guess = 0
+               "TP" #Label = 1, Guess = 1
+               )
+    return(arr[bin+1])
+  }
+  
+  result <- map2(.x = Labels, .y = Guesses,.f = Value_P) %>% unlist()
+  TN_Count <- result[result == "TN"] %>% length()
+  FP_Count <- result[result == "FP"] %>% length()
+  FN_Count <- result[result == "FN"] %>% length()
+  TP_Count <- result[result == "TP"] %>% length()
+  
+  # Return confusion matrix
+  return(matrix(c(TN_Count, FP_Count, FN_Count, TP_Count), nrow = 2, byrow = TRUE))
+}
+
+confusion_matrix <- Confusion_Matrix(Labels = true_labels, Guesses = prediction)
+print(confusion_matrix)
+
+TN <- confusion_matrix[1, 1]
+FP <- confusion_matrix[1, 2]
+FN <- confusion_matrix[2, 1]
+TP <- confusion_matrix[2, 2]
+
+specificity <- TN / (TN + FP)
+sensitivity <- TP / (TP + FN)
+
+cat("Specificity:", specificity, "\n")
+cat("Sensitivity:", sensitivity, "\n")
+#-------------------------------------------------------------------------------
+FP_Pie_Chart <- function(Labels, Guesses) {
+  require('cowplot')
+  require('ggrepel')
+  require('grid')
+  a_table <- Accuracy_Label_Table(Labels = Labels,
+                     Guesses = Guesses)
+  N_Acc <- round(a_table[1,2] / (a_table[1,2] + a_table[3,2]), digits = 4)
+  P_Acc <- round(a_table[4,2] / (a_table[4,2] + a_table[2,2]), digits = 4)
+  Acc <- round((a_table[1,2] + a_table[4,2]) / (a_table[1,2] + a_table[3,2] + a_table[4,2] + a_table[2,2]), digits = 4)
+
+  plt <- a_table %>%
+    ggplot(aes(x = "", y = value, fill = group)) +
+    geom_col() + 
+    geom_label(aes(label = value),
+               position = position_stack(vjust = 0.5),
+               show.legend = FALSE) +
+    coord_polar(theta = "y") +
+    scale_fill_manual(values = c("#FFABAB", "#FFB092",
+                                 "#b4d4fa", "#BFFCC6"),
+                      guide = guide_legend(reverse = TRUE)) + 
+    ggtitle("TP, TN, FP, FN Pie Chart") +
+    theme_void()
+
+  plt <- ggdraw(plt)
+
+  plt <- plt +
+    annotation_custom(grob = textGrob(paste0("Accuracy Positive: ",P_Acc)),  xmin = 1 - .2, xmax = 1 - .2, ymin = 1 - .025, ymax = 1- .025) +
+    annotation_custom(grob = textGrob(paste0("Accuracy Negative: ",N_Acc)),  xmin = 1 - .2, xmax = 1 - .2, ymin = 1 - .025 - .05, ymax = 1- .025 - .05) +
+    annotation_custom(grob = textGrob(paste0("Total Accuracy: ",Acc)),  xmin = 1 - .2, xmax = 1 - .2, ymin = 1 - .025 - .1, ymax = 1- .025 - .1)
+  plt
+}
+
+#FP_Pie_Chart(Labels = true_labels, Guesses = prediction)
+
+```
+
+### Tweets with Sarcasm with Hashtags(regular, sarcasm)
+```{r, include=TRUE}
+
+
+
+library('xgboost')
+library('tm')
+library('pacman')
+library('tidyverse')
+test <- read.csv("Datasets/Tweets_with_Sarcasm_and_Irony/test.csv")
+train <- read.csv("Datasets/Tweets_with_Sarcasm_and_Irony/train.csv")
+train <- train %>% filter(class!="")
+train$class[train$class == "figurative"] = "sarcasm"
+train$class[train$class == "irony"] = "sarcasm"
+create_train_test <- function(data_size, size = 0.8, train = TRUE) {
+  set.seed(123) # Set seed for reproducibility
+  
+  # Create shuffled indices
+  shuffled_indices <- sample(1:data_size)
+  
+  # Calculate the number of rows for the train set
+  train_rows <- round(size * data_size)
+  
+  if (train == TRUE) {
+    return (shuffled_indices[1:train_rows])
+  } else {
+    return (shuffled_indices[(train_rows + 1):data_size])
+  }
+}
+
+#CSC Project
+pacman::p_load(datasets,pacman, dplyr, GGally, ggplot2, ggthemes, ggvis,
+               httr, lubridate, plotly, rio, rmarkdown, shiny,
+               stringr, tidyverse, lessR, aplpack, readr, tm, SnowballC, rpart.plot)
+#class and tweets
+#-----------------------------------------------------------------------------------------------------------------------------
+#Preprocessing train
+corpus <- Corpus(VectorSource(train$tweets))
+corpus <- tm_map(corpus,PlainTextDocument)
+corpus <- tm_map(corpus,tolower)
+corpus <- tm_map(corpus,removePunctuation)
+corpus <- tm_map(corpus,removeWords,stopwords("english"))
+corpus <- tm_map(corpus,stemDocument)
+freq <- DocumentTermMatrix(corpus)
+sparse <- removeSparseTerms(freq,.995)
+tSparse <- as.data.frame(as.matrix(sparse))
+colnames(tSparse) = make.names(colnames(tSparse))
+tSparse$class = train$class
+
+#Prepare data for XGBoost
+train_indices <- create_train_test(nrow(tSparse), 0.8, train = TRUE)
+test_indices <- create_train_test(nrow(tSparse), 0.8, train = FALSE)
+
+tSparse$class <- as.factor(tSparse$class)
+tSparse$class <- as.numeric(tSparse$class) - 1
+
+trainSet <- xgb.DMatrix(data.matrix(tSparse[train_indices, -ncol(tSparse)]), label = tSparse$class[train_indices])
+testSet <- xgb.DMatrix(data.matrix(tSparse[test_indices, -ncol(tSparse)]), label = tSparse$class[test_indices])
+
+#Set up XGBoost parameters
+params <- list(
+  objective = "binary:logistic",
+  eval_metric = "error"
+)
+
+#Train the XGBoost model
+unique(tSparse$class)
+
+num_classes <- length(unique(tSparse$class))
+
+params <- list(
+  objective = "multi:softprob",
+  eval_metric = "mlogloss",
+  num_class = num_classes,
+  eta = 0.3,
+  max_depth = 6,
+  min_child_weight = 1,
+  subsample = 1,
+  colsample_bytree = 1,
+  gamma = 0
+)
+
+fit <- xgb.train(params,
+                 data = trainSet,
+                 nrounds = 100,
+                 watchlist = list(test = testSet),
+                 early_stopping_rounds = 10,
+                 maximize = FALSE,
+                 print_every_n = 10
+)
+
+#Predict the test set
+prediction_prob <- predict(fit, testSet, output_margin = TRUE)
+prediction <- matrix(prediction_prob, ncol = num_classes, byrow = TRUE)
+prediction <- max.col(prediction) - 1
+
+true_labels <- tSparse$class[test_indices]
+mean(true_labels == prediction)
+
+Accuracy_Label_Table <- function (Labels, Guesses) {
+  Value_P <- function(Label, Guess){
+  bin <- as.integer( #Returns int equivalent of binary value Label,Guess
+    strtoi(
+      paste0(Label * 10 + Guess), 
+      base = 2
+      )
+    )
+  
+    arr <- c("TN",
+             "FP", #Label = 0, Guess = 1
+             "FN", #Label = 1, Guess = 0
+             "TP" #Label = 1, Guess = 1
+             )
+  return(arr[bin+1])
+}
+
+result <- map2(.x = Labels, .y = Guesses,.f = Value_P) %>% unlist()
+TN_Count <- result[result == "TN"] %>% length()
+FP_Count <- result[result == "FP"] %>% length()
+FN_Count <- result[result == "FN"] %>% length()
+TP_Count <- result[result == "TP"] %>% length()
+
+group = c("True Negative (TN)", #Label = 0, Guess = 0
+          "False Positive (FP)", #Label = 0, Guess = 1
+          "False Negative (FN)", #Label = 1, Guess = 0
+          "True Positive (TP)" #Label = 1, Guess = 1
+          )
+value = c(TN_Count,
+          FP_Count,
+          FN_Count,
+          TP_Count)
+
+data.frame(group = group,
+           value = value)
+}
+#-------------------------------------------------------------------------------
+FP_Pie_Chart <- function(Labels, Guesses) {
+  require('cowplot')
+  require('ggrepel')
+  require('grid')
+  a_table <- Accuracy_Label_Table(Labels = Labels,
+                     Guesses = Guesses)
+  N_Acc <- round(a_table[1,2] / (a_table[1,2] + a_table[3,2]), digits = 4)
+  P_Acc <- round(a_table[4,2] / (a_table[4,2] + a_table[2,2]), digits = 4)
+  Acc <- round((a_table[1,2] + a_table[4,2]) / (a_table[1,2] + a_table[3,2] + a_table[4,2] + a_table[2,2]), digits = 4)
+
+  plt <- a_table %>%
+    ggplot(aes(x = "", y = value, fill = group)) +
+    geom_col() + 
+    geom_label(aes(label = value),
+               position = position_stack(vjust = 0.5),
+               show.legend = FALSE) +
+    coord_polar(theta = "y") +
+    scale_fill_manual(values = c("#FFABAB", "#FFB092",
+                                 "#b4d4fa", "#BFFCC6"),
+                      guide = guide_legend(reverse = TRUE)) + 
+    ggtitle("TP, TN, FP, FN Pie Chart") +
+    theme_void()
+
+  plt <- ggdraw(plt)
+
+  plt <- plt +
+    annotation_custom(grob = textGrob(paste0("Accuracy Positive: ",P_Acc)),  xmin = 1 - .2, xmax = 1 - .2, ymin = 1 - .025, ymax = 1- .025) +
+    annotation_custom(grob = textGrob(paste0("Accuracy Negative: ",N_Acc)),  xmin = 1 - .2, xmax = 1 - .2, ymin = 1 - .025 - .05, ymax = 1- .025 - .05) +
+    annotation_custom(grob = textGrob(paste0("Total Accuracy: ",Acc)),  xmin = 1 - .2, xmax = 1 - .2, ymin = 1 - .025 - .1, ymax = 1- .025 - .1)
+  plt
+}
+
+FP_Pie_Chart(Labels = true_labels, Guesses = prediction)
+
+```
+
+### ISarcasm dataset
+
+```{r, include=TRUE}
+
+
+
+library('xgboost')
+library('tm')
+library('pacman')
+library('tidyverse')
+test <- read.csv("Datasets/ISarcasm/test.csv")
+train <- read.csv("Datasets/ISarcasm/train.csv")
+train <- train %>% filter(class!="")
+train$class[train$class == "figurative"] = "sarcasm"
+train$class[train$class == "irony"] = "sarcasm"
+create_train_test <- function(data_size, size = 0.8, train = TRUE) {
+  set.seed(123) # Set seed for reproducibility
+  
+  # Create shuffled indices
+  shuffled_indices <- sample(1:data_size)
+  
+  # Calculate the number of rows for the train set
+  train_rows <- round(size * data_size)
+  
+  if (train == TRUE) { 
+    return (shuffled_indices[1:train_rows])
+  } else {
+    return (shuffled_indices[(train_rows + 1):data_size])
+  }
+}
+
+#CSC Project
+pacman::p_load(datasets,pacman, dplyr, GGally, ggplot2, ggthemes, ggvis,
+               httr, lubridate, plotly, rio, rmarkdown, shiny,
+               stringr, tidyverse, lessR, aplpack, readr, tm, SnowballC, rpart.plot)
+#class and tweets
+#-----------------------------------------------------------------------------------------------------------------------------
+#Preprocessing train
+corpus <- Corpus(VectorSource(train$tweets))
+corpus <- tm_map(corpus,PlainTextDocument)
+corpus <- tm_map(corpus,tolower)
+corpus <- tm_map(corpus,removePunctuation)
+corpus <- tm_map(corpus,removeWords,stopwords("english"))
+corpus <- tm_map(corpus,stemDocument)
+freq <- DocumentTermMatrix(corpus)
+sparse <- removeSparseTerms(freq,.995)
+tSparse <- as.data.frame(as.matrix(sparse))
+colnames(tSparse) = make.names(colnames(tSparse))
+tSparse$class = train$class
+
+#Prepare data for XGBoost
+train_indices <- create_train_test(nrow(tSparse), 0.8, train = TRUE)
+test_indices <- create_train_test(nrow(tSparse), 0.8, train = FALSE)
+
+tSparse$class <- as.factor(tSparse$class)
+tSparse$class <- as.numeric(tSparse$class) - 1
+
+trainSet <- xgb.DMatrix(data.matrix(tSparse[train_indices, -ncol(tSparse)]), label = tSparse$class[train_indices])
+testSet <- xgb.DMatrix(data.matrix(tSparse[test_indices, -ncol(tSparse)]), label = tSparse$class[test_indices])
+
+#Set up XGBoost parameters
+params <- list(
+  objective = "binary:logistic",
+  eval_metric = "error"
+)
+
+#Train the XGBoost model
+unique(tSparse$class)
+
+num_classes <- length(unique(tSparse$class))
+
+params <- list(
+  objective = "multi:softprob",
+  eval_metric = "mlogloss",
+  num_class = num_classes,
+  eta = 0.3,
+  max_depth = 6,
+  min_child_weight = 1,
+  subsample = 1,
+  colsample_bytree = 1,
+  gamma = 0
+)
+
+fit <- xgb.train(params,
+                 data = trainSet,
+                 nrounds = 100,
+                 watchlist = list(test = testSet),
+                 early_stopping_rounds = 10,
+                 maximize = FALSE,
+                 print_every_n = 10
+)
+
+#Predict the test set
+#prediction_prob <- predict(fit, testSet, output_margin = TRUE)
+#prediction <- matrix(prediction_prob, ncol = num_classes, byrow = TRUE)
+#prediction <- max.col(prediction) - 1
+
+# Predict the probabilities of each class for the test set
+predicted_probs <- predict(fit, testSet, output_margin = TRUE)
+
+# Reshape the vector of probabilities into a matrix
+predicted_probs_matrix <- matrix(predicted_probs, ncol = num_classes, byrow = TRUE)
+
+# Find the class with the maximum probability for each observation
+predicted_class_indices <- apply(predicted_probs_matrix, 1, which.max) - 1
+
+
+true_labels <- tSparse$class[test_indices]
+mean(true_labels == prediction)
+
+Accuracy_Label_Table <- function (Labels, Guesses) {
+  Value_P <- function(Label, Guess){
+  bin <- as.integer( #Returns int equivalent of binary value Label,Guess
+    strtoi(
+      paste0(Label * 10 + Guess), 
+      base = 2
+      )
+    )
+  
+    arr <- c("TN",
+             "FP", #Label = 0, Guess = 1
+             "FN", #Label = 1, Guess = 0
+             "TP" #Label = 1, Guess = 1
+             )
+  return(arr[bin+1])
+}
+
+result <- map2(.x = Labels, .y = Guesses,.f = Value_P) %>% unlist()
+TN_Count <- result[result == "TN"] %>% length()
+FP_Count <- result[result == "FP"] %>% length()
+FN_Count <- result[result == "FN"] %>% length()
+TP_Count <- result[result == "TP"] %>% length()
+
+group = c("True Negative (TN)", #Label = 0, Guess = 0
+          "False Positive (FP)", #Label = 0, Guess = 1
+          "False Negative (FN)", #Label = 1, Guess = 0
+          "True Positive (TP)" #Label = 1, Guess = 1
+          )
+value = c(TN_Count,
+          FP_Count,
+          FN_Count,
+          TP_Count)
+
+data.frame(group = group,
+           value = value)
+}
+#-------------------------------------------------------------------------------
+FP_Pie_Chart <- function(Labels, Guesses) {
+  require('cowplot')
+  require('ggrepel')
+  require('grid')
+  a_table <- Accuracy_Label_Table(Labels = Labels,
+                     Guesses = Guesses)
+  N_Acc <- round(a_table[1,2] / (a_table[1,2] + a_table[3,2]), digits = 4)
+  P_Acc <- round(a_table[4,2] / (a_table[4,2] + a_table[2,2]), digits = 4)
+  Acc <- round((a_table[1,2] + a_table[4,2]) / (a_table[1,2] + a_table[3,2] + a_table[4,2] + a_table[2,2]), digits = 4)
+
+  plt <- a_table %>%
+    ggplot(aes(x = "", y = value, fill = group)) +
+    geom_col() + 
+    geom_label(aes(label = value),
+               position = position_stack(vjust = 0.5),
+               show.legend = FALSE) +
+    coord_polar(theta = "y") +
+    scale_fill_manual(values = c("#FFABAB", "#FFB092",
+                                 "#b4d4fa", "#BFFCC6"),
+                      guide = guide_legend(reverse = TRUE)) + 
+    ggtitle("TP, TN, FP, FN Pie Chart") +
+    theme_void()
+
+  plt <- ggdraw(plt)
+
+  plt <- plt +
+    annotation_custom(grob = textGrob(paste0("Accuracy Positive: ",P_Acc)),  xmin = 1 - .2, xmax = 1 - .2, ymin = 1 - .025, ymax = 1- .025) +
+    annotation_custom(grob = textGrob(paste0("Accuracy Negative: ",N_Acc)),  xmin = 1 - .2, xmax = 1 - .2, ymin = 1 - .025 - .05, ymax = 1- .025 - .05) +
+    annotation_custom(grob = textGrob(paste0("Total Accuracy: ",Acc)),  xmin = 1 - .2, xmax = 1 - .2, ymin = 1 - .025 - .1, ymax = 1- .025 - .1)
+  plt
+}
+
+FP_Pie_Chart(Labels = true_labels, Guesses = prediction)
+
+```
+
+###Tweets with Sarcasm without Hashtags(regular, sarcasm, figurative, irony)
+
+```{r setup, include=TRUE}
+
+
+
+library('xgboost')
+library('tm')
+library('pacman')
+library('tidyverse')
+test <- read.csv("Datasets/Tweets_with_Sarcasm_and_Irony/test_without_hashtags.csv")
+train <- read.csv("Datasets/Tweets_with_Sarcasm_and_Irony/train_without_hashtags.csv")
+train <- train %>% filter(class!="")
+create_train_test <- function(data_size, size = 0.8, train = TRUE) {
+  set.seed(123) # Set seed for reproducibility
+  
+  # Create shuffled indices
+  shuffled_indices <- sample(1:data_size)
+  
+  # Calculate the number of rows for the train set
+  train_rows <- round(size * data_size)
+  
+  if (train == TRUE) {
+    return (shuffled_indices[1:train_rows])
+  } else {
+    return (shuffled_indices[(train_rows + 1):data_size])
+  }
+}
+
+#CSC Project
+pacman::p_load(datasets,pacman, dplyr, GGally, ggplot2, ggthemes, ggvis,
+               httr, lubridate, plotly, rio, rmarkdown, shiny,
+               stringr, tidyverse, lessR, aplpack, readr, tm, SnowballC, rpart.plot)
+#class and tweets
+#-----------------------------------------------------------------------------------------------------------------------------
+#Preprocessing train
+corpus <- Corpus(VectorSource(train$tweets))
+corpus <- tm_map(corpus,PlainTextDocument)
+corpus <- tm_map(corpus,tolower)
+corpus <- tm_map(corpus,removePunctuation)
+corpus <- tm_map(corpus,removeWords,stopwords("english"))
+corpus <- tm_map(corpus,stemDocument)
+freq <- DocumentTermMatrix(corpus)
+sparse <- removeSparseTerms(freq,.995)
+tSparse <- as.data.frame(as.matrix(sparse))
+colnames(tSparse) = make.names(colnames(tSparse))
+tSparse$class = train$class
+
+#Prepare data for XGBoost
+train_indices <- create_train_test(nrow(tSparse), 0.8, train = TRUE)
+test_indices <- create_train_test(nrow(tSparse), 0.8, train = FALSE)
+
+tSparse$class <- as.factor(tSparse$class)
+tSparse$class <- as.numeric(tSparse$class) - 1
+
+trainSet <- xgb.DMatrix(data.matrix(tSparse[train_indices, -ncol(tSparse)]), label = tSparse$class[train_indices])
+testSet <- xgb.DMatrix(data.matrix(tSparse[test_indices, -ncol(tSparse)]), label = tSparse$class[test_indices])
+
+#Set up XGBoost parameters
+params <- list(
+  objective = "multi:softprob",
+  eval_metric = "error"
+)
+
+#Train the XGBoost model
+unique(tSparse$class)
+
+num_classes <- length(unique(tSparse$class))
+
+params <- list(
+  objective = "multi:softprob",#What Tye changed, original:binary:logistic
+  eval_metric = "mlogloss",
+  num_class = num_classes,
+  eta = 0.3,
+  max_depth = 6,
+  min_child_weight = 1,
+  subsample = 1,
+  colsample_bytree = 1,
+  gamma = 0
+)
+
+fit <- xgb.train(params,
+                 data = trainSet,
+                 nrounds = 100,
+                 watchlist = list(test = testSet),
+                 early_stopping_rounds = 10,
+                 maximize = FALSE,
+                 print_every_n = 10
+)
+
+#Predict the test set
+prediction_prob <- predict(fit, testSet, output_margin = TRUE)
+prediction <- matrix(prediction_prob, ncol = num_classes, byrow = TRUE)
+prediction <- max.col(prediction) - 1
+
+true_labels <- tSparse$class[test_indices]
+mean(true_labels == prediction)
+
+Confusion_Matrix <- function (Labels, Guesses) {
+  Value_P <- function(Label, Guess){
+    bin <- as.integer( #Returns int equivalent of binary value Label,Guess
+      strtoi(
+        paste0(Label * 10 + Guess), 
+        base = 2
+        )
+      )
+    
+      arr <- c("TN",
+               "FP", #Label = 0, Guess = 1
+               "FN", #Label = 1, Guess = 0
+               "TP" #Label = 1, Guess = 1
+               )
+    return(arr[bin+1])
+  }
+  
+  result <- map2(.x = Labels, .y = Guesses,.f = Value_P) %>% unlist()
+  TN_Count <- result[result == "TN"] %>% length()
+  FP_Count <- result[result == "FP"] %>% length()
+  FN_Count <- result[result == "FN"] %>% length()
+  TP_Count <- result[result == "TP"] %>% length()
+  
+  # Return confusion matrix
+  return(matrix(c(TN_Count, FP_Count, FN_Count, TP_Count), nrow = 2, byrow = TRUE))
+}
+
+confusion_matrix <- Confusion_Matrix(Labels = true_labels, Guesses = prediction)
+print(confusion_matrix)
+
+TN <- confusion_matrix[1, 1]
+FP <- confusion_matrix[1, 2]
+FN <- confusion_matrix[2, 1]
+TP <- confusion_matrix[2, 2]
+
+specificity <- TN / (TN + FP)
+sensitivity <- TP / (TP + FN)
+
+cat("Specificity:", specificity, "\n")
+cat("Sensitivity:", sensitivity, "\n")
+#-------------------------------------------------------------------------------
+FP_Pie_Chart <- function(Labels, Guesses) {
+  require('cowplot')
+  require('ggrepel')
+  require('grid')
+  a_table <- Accuracy_Label_Table(Labels = Labels,
+                     Guesses = Guesses)
+  N_Acc <- round(a_table[1,2] / (a_table[1,2] + a_table[3,2]), digits = 4)
+  P_Acc <- round(a_table[4,2] / (a_table[4,2] + a_table[2,2]), digits = 4)
+  Acc <- round((a_table[1,2] + a_table[4,2]) / (a_table[1,2] + a_table[3,2] + a_table[4,2] + a_table[2,2]), digits = 4)
+
+  plt <- a_table %>%
+    ggplot(aes(x = "", y = value, fill = group)) +
+    geom_col() + 
+    geom_label(aes(label = value),
+               position = position_stack(vjust = 0.5),
+               show.legend = FALSE) +
+    coord_polar(theta = "y") +
+    scale_fill_manual(values = c("#FFABAB", "#FFB092",
+                                 "#b4d4fa", "#BFFCC6"),
+                      guide = guide_legend(reverse = TRUE)) + 
+    ggtitle("TP, TN, FP, FN Pie Chart") +
+    theme_void()
+
+  plt <- ggdraw(plt)
+
+  plt <- plt +
+    annotation_custom(grob = textGrob(paste0("Accuracy Positive: ",P_Acc)),  xmin = 1 - .2, xmax = 1 - .2, ymin = 1 - .025, ymax = 1- .025) +
+    annotation_custom(grob = textGrob(paste0("Accuracy Negative: ",N_Acc)),  xmin = 1 - .2, xmax = 1 - .2, ymin = 1 - .025 - .05, ymax = 1- .025 - .05) +
+    annotation_custom(grob = textGrob(paste0("Total Accuracy: ",Acc)),  xmin = 1 - .2, xmax = 1 - .2, ymin = 1 - .025 - .1, ymax = 1- .025 - .1)
+  plt
+}
+
+#FP_Pie_Chart(Labels = true_labels, Guesses = prediction)
+
+```
+
+###Tweets with Sarcasm without Hashtags(regular, sarcasm)
+
+```{r, include=TRUE}
+
+
+
+library('xgboost')
+library('tm')
+library('pacman')
+library('tidyverse')
+test <- read.csv("Datasets/Tweets_with_Sarcasm_and_Irony/test_without_hashtags.csv")
+train <- read.csv("Datasets/Tweets_with_Sarcasm_and_Irony/train_without_hashtags.csv")
+even_out_observations <- function(data){
+  regular <- data %>% filter(class == 'regular')
+  sarcasm <- data %>% filter(class != 'regular')
+  sarcasm$class = "sarcasm"
+  num_regular <- regular %>% nrow() 
+  sarcasm <- sarcasm[1:num_regular,]
+  data <- rbind(regular,sarcasm)
+  data <- data[sample(1:nrow(data)), ]
+  data
+}
+
+train <- train %>% filter(class!="")
+train$class[train$class == "figurative"] = "sarcasm"
+train$class[train$class == "irony"] = "sarcasm"
+create_train_test <- function(data_size, size = 0.8, train = TRUE) {
+  set.seed(123) # Set seed for reproducibility
+  
+  # Create shuffled indices
+  shuffled_indices <- sample(1:data_size)
+  
+  # Calculate the number of rows for the train set
+  train_rows <- round(size * data_size)
+  
+  if (train == TRUE) {
+    return (shuffled_indices[1:train_rows])
+  } else {
+    return (shuffled_indices[(train_rows + 1):data_size])
+  }
+}
+
+#CSC Project
+pacman::p_load(datasets,pacman, dplyr, GGally, ggplot2, ggthemes, ggvis,
+               httr, lubridate, plotly, rio, rmarkdown, shiny,
+               stringr, tidyverse, lessR, aplpack, readr, tm, SnowballC, rpart.plot)
+#class and tweets
+#-----------------------------------------------------------------------------------------------------------------------------
+#Preprocessing train
+corpus <- Corpus(VectorSource(train$tweets))
+corpus <- tm_map(corpus,PlainTextDocument)
+corpus <- tm_map(corpus,tolower)
+corpus <- tm_map(corpus,removePunctuation)
+corpus <- tm_map(corpus,removeWords,stopwords("english"))
+corpus <- tm_map(corpus,stemDocument)
+freq <- DocumentTermMatrix(corpus)
+sparse <- removeSparseTerms(freq,.995)
+tSparse <- as.data.frame(as.matrix(sparse))
+colnames(tSparse) = make.names(colnames(tSparse))
+tSparse$class = train$class
+
+#Prepare data for XGBoost
+train_indices <- create_train_test(nrow(tSparse), 0.8, train = TRUE)
+test_indices <- create_train_test(nrow(tSparse), 0.8, train = FALSE)
+
+train = even_out_observations(train)
+test = even_out_observations(test)
+
+tSparse$class <- as.factor(tSparse$class)
+tSparse$class <- as.numeric(tSparse$class) - 1
+
+trainSet <- xgb.DMatrix(data.matrix(tSparse[train_indices, -ncol(tSparse)]), label = tSparse$class[train_indices])
+testSet <- xgb.DMatrix(data.matrix(tSparse[test_indices, -ncol(tSparse)]), label = tSparse$class[test_indices])
+
+#Set up XGBoost parameters
+params <- list(
+  objective = "binary:logistic",
+  eval_metric = "error"
+)
+
+#Train the XGBoost model
+unique(tSparse$class)
+
+num_classes <- length(unique(tSparse$class))
+
+params <- list(
+  objective = "multi:softprob",
+  eval_metric = "mlogloss",
+  num_class = num_classes,
+  eta = 0.3,
+  max_depth = 6,
+  min_child_weight = 1,
+  subsample = 1,
+  colsample_bytree = 1,
+  gamma = 0
+)
+
+fit <- xgb.train(params,
+                 data = trainSet,
+                 nrounds = 100,
+                 watchlist = list(test = testSet),
+                 early_stopping_rounds = 10,
+                 maximize = FALSE,
+                 print_every_n = 10
+)
+
+#Predict the test set
+prediction_prob <- predict(fit, testSet, output_margin = TRUE)
+prediction <- matrix(prediction_prob, ncol = num_classes, byrow = TRUE)
+prediction <- max.col(prediction) - 1
+
+true_labels <- tSparse$class[test_indices]
+mean(true_labels == prediction)
+
+Accuracy_Label_Table <- function (Labels, Guesses) {
+  Value_P <- function(Label, Guess){
+  bin <- as.integer( #Returns int equivalent of binary value Label,Guess
+    strtoi(
+      paste0(Label * 10 + Guess), 
+      base = 2
+      )
+    )
+  
+    arr <- c("TN",
+             "FP", #Label = 0, Guess = 1
+             "FN", #Label = 1, Guess = 0
+             "TP" #Label = 1, Guess = 1
+             )
+  return(arr[bin+1])
+}
+
+result <- map2(.x = Labels, .y = Guesses,.f = Value_P) %>% unlist()
+TN_Count <- result[result == "TN"] %>% length()
+FP_Count <- result[result == "FP"] %>% length()
+FN_Count <- result[result == "FN"] %>% length()
+TP_Count <- result[result == "TP"] %>% length()
+
+group = c("True Negative (TN)", #Label = 0, Guess = 0
+          "False Positive (FP)", #Label = 0, Guess = 1
+          "False Negative (FN)", #Label = 1, Guess = 0
+          "True Positive (TP)" #Label = 1, Guess = 1
+          )
+value = c(TN_Count,
+          FP_Count,
+          FN_Count,
+          TP_Count)
+
+data.frame(group = group,
+           value = value)
+}
+#-------------------------------------------------------------------------------
+FP_Pie_Chart <- function(Labels, Guesses) {
+  require('cowplot')
+  require('ggrepel')
+  require('grid')
+  a_table <- Accuracy_Label_Table(Labels = Labels,
+                     Guesses = Guesses)
+  N_Acc <- round(a_table[1,2] / (a_table[1,2] + a_table[3,2]), digits = 4)
+  P_Acc <- round(a_table[4,2] / (a_table[4,2] + a_table[2,2]), digits = 4)
+  Acc <- round((a_table[1,2] + a_table[4,2]) / (a_table[1,2] + a_table[3,2] + a_table[4,2] + a_table[2,2]), digits = 4)
+
+  plt <- a_table %>%
+    ggplot(aes(x = "", y = value, fill = group)) +
+    geom_col() + 
+    geom_label(aes(label = value),
+               position = position_stack(vjust = 0.5),
+               show.legend = FALSE) +
+    coord_polar(theta = "y") +
+    scale_fill_manual(values = c("#FFABAB", "#FFB092",
+                                 "#b4d4fa", "#BFFCC6"),
+                      guide = guide_legend(reverse = TRUE)) + 
+    ggtitle("TP, TN, FP, FN Pie Chart") +
+    theme_void()
+
+  plt <- ggdraw(plt)
+
+  plt <- plt +
+    annotation_custom(grob = textGrob(paste0("Accuracy Positive: ",P_Acc)),  xmin = 1 - .2, xmax = 1 - .2, ymin = 1 - .025, ymax = 1- .025) +
+    annotation_custom(grob = textGrob(paste0("Accuracy Negative: ",N_Acc)),  xmin = 1 - .2, xmax = 1 - .2, ymin = 1 - .025 - .05, ymax = 1- .025 - .05) +
+    annotation_custom(grob = textGrob(paste0("Total Accuracy: ",Acc)),  xmin = 1 - .2, xmax = 1 - .2, ymin = 1 - .025 - .1, ymax = 1- .025 - .1)
+  plt
+}
+
+FP_Pie_Chart(Labels = true_labels, Guesses = prediction)
+
+```
