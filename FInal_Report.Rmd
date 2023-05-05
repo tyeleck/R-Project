@@ -1271,10 +1271,12 @@ accuracy_Test
 
 ### XgBoost
 
-### Tweets with Sarcasm with Hashtags(regular, sarcasm, figurative, irony)
+#### Models {.tabset}
+
+##### Tweets with Sarcasm with Hashtags(regular, sarcasm, figurative, irony)
 
 
-```{r setup, include=TRUE}
+```{r, include=TRUE}
 
 
 
@@ -1447,7 +1449,7 @@ FP_Pie_Chart <- function(Labels, Guesses) {
 
 ```
 
-### Tweets with Sarcasm with Hashtags(regular, sarcasm)
+##### Tweets with Sarcasm with Hashtags(regular, sarcasm)
 ```{r, include=TRUE}
 
 
@@ -1478,9 +1480,9 @@ create_train_test <- function(data_size, size = 0.8, train = TRUE) {
 }
 
 #CSC Project
-pacman::p_load(datasets,pacman, dplyr, GGally, ggplot2, ggthemes, ggvis,
-               httr, lubridate, plotly, rio, rmarkdown, shiny,
-               stringr, tidyverse, lessR, aplpack, readr, tm, SnowballC, rpart.plot)
+#pacman::p_load(datasets,pacman, dplyr, GGally, ggplot2, ggthemes, ggvis,
+#               httr, lubridate, plotly, rio, rmarkdown, shiny,
+ #              stringr, tidyverse, lessR, aplpack, readr, tm, SnowballC, rpart.plot)
 #class and tweets
 #-----------------------------------------------------------------------------------------------------------------------------
 #Preprocessing train
@@ -1619,7 +1621,7 @@ FP_Pie_Chart(Labels = true_labels, Guesses = prediction)
 
 ```
 
-### ISarcasm dataset
+##### ISarcasm dataset
 
 ```{r, include=TRUE}
 
@@ -1651,9 +1653,9 @@ create_train_test <- function(data_size, size = 0.8, train = TRUE) {
 }
 
 #CSC Project
-pacman::p_load(datasets,pacman, dplyr, GGally, ggplot2, ggthemes, ggvis,
-               httr, lubridate, plotly, rio, rmarkdown, shiny,
-               stringr, tidyverse, lessR, aplpack, readr, tm, SnowballC, rpart.plot)
+#pacman::p_load(datasets,pacman, dplyr, GGally, ggplot2, ggthemes, ggvis,
+#               httr, lubridate, plotly, rio, rmarkdown, shiny,
+#               stringr, tidyverse, lessR, aplpack, readr, tm, SnowballC, rpart.plot)
 #class and tweets
 #-----------------------------------------------------------------------------------------------------------------------------
 #Preprocessing train
@@ -1727,7 +1729,7 @@ predicted_class_indices <- apply(predicted_probs_matrix, 1, which.max) - 1
 
 
 true_labels <- tSparse$class[test_indices]
-mean(true_labels == prediction)
+mean(true_labels == predicted_class_indices)
 
 Accuracy_Label_Table <- function (Labels, Guesses) {
   Value_P <- function(Label, Guess){
@@ -1798,13 +1800,13 @@ FP_Pie_Chart <- function(Labels, Guesses) {
   plt
 }
 
-FP_Pie_Chart(Labels = true_labels, Guesses = prediction)
+FP_Pie_Chart(Labels = true_labels, Guesses = predicted_class_indices)
 
 ```
 
-###Tweets with Sarcasm without Hashtags(regular, sarcasm, figurative, irony)
+##### Tweets with Sarcasm without Hashtags(regular, sarcasm, figurative, irony)
 
-```{r setup, include=TRUE}
+```{r, include=TRUE}
 
 
 
@@ -1832,9 +1834,9 @@ create_train_test <- function(data_size, size = 0.8, train = TRUE) {
 }
 
 #CSC Project
-pacman::p_load(datasets,pacman, dplyr, GGally, ggplot2, ggthemes, ggvis,
-               httr, lubridate, plotly, rio, rmarkdown, shiny,
-               stringr, tidyverse, lessR, aplpack, readr, tm, SnowballC, rpart.plot)
+#pacman::p_load(datasets,pacman, dplyr, GGally, ggplot2, ggthemes, ggvis,
+#               httr, lubridate, plotly, rio, rmarkdown, shiny,
+#               stringr, tidyverse, lessR, aplpack, readr, tm, SnowballC, rpart.plot)
 #class and tweets
 #-----------------------------------------------------------------------------------------------------------------------------
 #Preprocessing train
@@ -1977,7 +1979,7 @@ FP_Pie_Chart <- function(Labels, Guesses) {
 
 ```
 
-###Tweets with Sarcasm without Hashtags(regular, sarcasm)
+##### Tweets with Sarcasm without Hashtags(regular, sarcasm)
 
 ```{r, include=TRUE}
 
@@ -2020,9 +2022,9 @@ create_train_test <- function(data_size, size = 0.8, train = TRUE) {
 }
 
 #CSC Project
-pacman::p_load(datasets,pacman, dplyr, GGally, ggplot2, ggthemes, ggvis,
-               httr, lubridate, plotly, rio, rmarkdown, shiny,
-               stringr, tidyverse, lessR, aplpack, readr, tm, SnowballC, rpart.plot)
+#pacman::p_load(datasets,pacman, dplyr, GGally, ggplot2, ggthemes, ggvis,
+ #              httr, lubridate, plotly, rio, rmarkdown, shiny,
+#               stringr, tidyverse, lessR, aplpack, readr, tm, SnowballC, rpart.plot)
 #class and tweets
 #-----------------------------------------------------------------------------------------------------------------------------
 #Preprocessing train
