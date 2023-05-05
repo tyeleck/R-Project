@@ -16,7 +16,7 @@ output:
 
 <p style="margin-top:0in;margin-right:.2in;margin-bottom:8.0pt;margin-left:.2in;line-height:normal;font-size:15px;font-family:&quot;Calibri&quot;,sans-serif;text-indent:.5in;">
 
-[When using datasets gathered from mediums designed for casual conversation such as twitter, the problem with these datasets is the large amount of sarcasm present in these datasets. With sarcasm being difficult to detect by humans and Natural Language processing models this can hinder the model's accuracy. As a result, we hoped to create an NLP model specifically designed to detect sarcasm for other NLP models. To do this, two datasets will be utilized, <em>ISarcasm</em> and <em>Tweets with Sarcasm and Irony</em>. In addition, these datasets will be trained on with five different models; <em>Recurrent Neural Networks (RNN), Support Vector Machine (SVM), Random Forests, Decision Trees,</em> and <em>XGboost</em>. By combining our model with other NLP models, we hope to increase the accuracy of these models. ]{style="font-size:16px;"}
+[When using datasets gathered from mediums designed for casual conversation such as twitter, the problem with these datasets is the large amount of sarcasm present in these datasets. With sarcasm being difficult to detect by humans and Natural Language processing models this can hinder the model's accuracy. As a result, we hoped to create an NLP model specifically designed to detect sarcasm for other NLP models. To do this, two datasets will be utilized, ]{style="font-size:16px;"}<em>ISarcasm</em> and <em>Tweets with Sarcasm and Irony</em>. In addition, these datasets will be trained on with five different models; <em>Recurrent Neural Networks (RNN), Support Vector Machine (SVM), Random Forests, Decision Trees,</em> and <em>XGboost</em>. By combining our model with other NLP models, we hope to increase the accuracy of these models. 
 
 </p>
 
@@ -28,15 +28,35 @@ output:
 
 <ul style="list-style-type: disc;margin-left:-0.3in;">
 
-<li>[The dataset, <em>Tweets with Sarcasm and Irony</em>, contains one column of random tweets across the social media platform Twitter that is categorized into 4 classes: irony, sarcasm, figurative (both irony and sarcasm), and regular. The dataset consists of 2 files: train.csv and test.csv. Both files share the same columns and classes with different values. The collection being used in the data set is the tweepy package which is Twitter API and tweepy to collect tweets using respective tweet IDs. Social media nowadays is hard to interpret the emotional display of posts of comments so with this dataset we plan to turn it into insightful information by exploring potential insights that we can gather. ]{style="line-height:106%;font-family:Calibri;font-size:16px;"}</li>
+<li>
 
-<li>[With this dataset, we convert it into two files: <em>Tweets with hashtags, T</em><em>weets without hashtags</em>]{style="line-height:106%;font-family:Calibri;font-size:16px;"}</li>
+[The dataset, ]{style="line-height:106%;font-family:Calibri;font-size:16px;"}<em>Tweets with Sarcasm and Irony</em>, contains one column of random tweets across the social media platform Twitter that is categorized into 4 classes: irony, sarcasm, figurative (both irony and sarcasm), and regular. The dataset consists of 2 files: train.csv and test.csv. Both files share the same columns and classes with different values. The collection being used in the data set is the tweepy package which is Twitter API and tweepy to collect tweets using respective tweet IDs. Social media nowadays is hard to interpret the emotional display of posts of comments so with this dataset we plan to turn it into insightful information by exploring potential insights that we can gather. 
 
-<li>[This is done because hashtags will cause the model to overfit to the dataset as seen with our results.]{style="line-height:106%;font-family:Calibri;font-size:16px;"}</li>
+</li>
 
-<li>[The other dataset we use is <em>ISarcasm</em>. ISarcasm is a dataset designed specifically for training a model without the bias found in many sarcasm datasets]{style="line-height:106%;font-family:Calibri;font-size:16px;"}</li>
+<li>
 
-<li>[Links: ISarcasm: <a data-fr-linked="true" href="https://paperswithcode.com/dataset/isarcasm,"><https://paperswithcode.com/dataset/isarcasm>,</a> Tweets with Sarcasm and Irony: <https://www.kaggle.com/datasets/nikhiljohnk/tweets-with-sarcasm-and-irony>]{style="line-height:106%;font-family:Calibri;font-size:16px;"}</li>
+[With this dataset, we convert it into two files: ]{style="line-height:106%;font-family:Calibri;font-size:16px;"}<em>Tweets with hashtags, T</em><em>weets without hashtags</em>
+
+</li>
+
+<li>
+
+[This is done because hashtags will cause the model to overfit to the dataset as seen with our results.]{style="line-height:106%;font-family:Calibri;font-size:16px;"}
+
+</li>
+
+<li>
+
+[The other dataset we use is ]{style="line-height:106%;font-family:Calibri;font-size:16px;"}<em>ISarcasm</em>. ISarcasm is a dataset designed specifically for training a model without the bias found in many sarcasm datasets
+
+</li>
+
+<li>
+
+[Links: ISarcasm: ]{style="line-height:106%;font-family:Calibri;font-size:16px;"}<a data-fr-linked="true" href="https://paperswithcode.com/dataset/isarcasm,"><https://paperswithcode.com/dataset/isarcasm>,</a> Tweets with Sarcasm and Irony: <https://www.kaggle.com/datasets/nikhiljohnk/tweets-with-sarcasm-and-irony>
+
+</li>
 
 </ul>
 
@@ -53,6 +73,8 @@ library('stopwords')
 library('ggplot2')
 library('ggwordcloud')
 library('grid')
+library('rpart')
+library('rpart.plot')
 #library('ggrepel')
 
 
@@ -1149,87 +1171,9 @@ FP_Pie_Chart(Guesses = predictions, Labels = test_labels)
 
 ### Decision Trees
 
-#### Import
-
-```{Code}
-test <- read_csv("https://raw.githubusercontent.com/tyeleck/R-Project/main/Datasets/Tweets_with_Sarcasm_and_Irony/test_without_hashtags.csv?token=GHSAT0AAAAAACB65GH7KSCRHQTWAUQI7YPSZCK577Q")
-train <- read.csv("C:/Users/dcona/Downloads/train_without_hashtags.txt")
-```
-
-#### Preprocessing Data
-
-```{Transform one dataset to another}
-test <- select(test, class, tweets)
-train <- select(train, class,tweets)
-
-#Run these two lines if you are only using sarcasm and regular in the model
-train[train == "figurative"] <- "sarcasm"
-train[train == "irony"] <- "sarcasm"
-```
-
-```{standardize data}
-corpus <- Corpus(VectorSource(train$tweets))
-
-corpus <- tm_map(corpus,PlainTextDocument)
-corpus <- tm_map(corpus,tolower)
-corpus <- tm_map(corpus,removePunctuation)
-corpus <- tm_map(corpus,removeWords,stopwords("english"))
-corpus <- tm_map(corpus,stemDocument)
-```
-
-```{Decontruct the tweets}
-freq <- DocumentTermMatrix(corpus)
-#Remove rare words
-sparse <- removeSparseTerms(freq,.995)
-#Create a matrix of the words
-tSparse <- as.data.frame(as.matrix(sparse))
-colnames(tSparse) = make.names(colnames(tSparse))
-tSparse$class = train$class
-```
-
-```{Split}
-#Split the data
-trainSet <- create_train_test(tSparse,.8,train = T)
-testSet <- create_train_test(tSparse,.8,train = F)
-#Check the proportion of each class
-prop.table(table(tSparse$class))
-```
-
-#### Model
-
-```{Creating the model}
-#Make the Model
-#This is where you tweak the parameters to get the tree you want. This is also where the pruning is done.
-fit <- rpart(class~., data = trainSet,
-             method = "class",
-             minsplit = 28,
-             cp = .00045,
-             maxsurrogate = 1)
-#Shows the significance of the words it is using in the model
-printcp(fit)
-```
-
-#### Visualiztion
-
-```{Decision Tree}
-rpart.plot(fit)
-```
-
-#### Testing
-
-```{Testing the model}
-#Making the prediction
-prediction <- predict(fit, testSet, type = "class")
-prediction
-#Testing the prediction against the training set
-table_mat <- table(testSet$class, prediction)
-accuracy_Test <- sum(diag(table_mat)) / sum(table_mat)
-accuracy_Test
-```
-
 #### Functions
 
-```{Partition dataset}
+```{r Partition dataset}
 create_train_test <- function(data, size = 0.8, train = TRUE) {
   
   #Shuffle Data
@@ -1245,6 +1189,84 @@ create_train_test <- function(data, size = 0.8, train = TRUE) {
     return (data[-train_sample, ])
   }
 }
+```
+
+#### Import
+
+```{r Code}
+test <- read_csv("Datasets/Tweets_with_Sarcasm_and_Irony/test_without_hashtags.csv")
+train <- read.csv("Datasets/Tweets_with_Sarcasm_and_Irony/train_without_hashtags.csv")
+```
+
+#### Preprocessing Data
+
+```{r Transform one dataset to another}
+test <- select(test, class, tweets)
+train <- select(train, class,tweets)
+
+#Run these two lines if you are only using sarcasm and regular in the model
+train[train == "figurative"] <- "sarcasm"
+train[train == "irony"] <- "sarcasm"
+```
+
+```{r standardize data}
+corpus <- Corpus(VectorSource(train$tweets))
+
+corpus <- tm_map(corpus,PlainTextDocument)
+corpus <- tm_map(corpus,tolower)
+corpus <- tm_map(corpus,removePunctuation)
+corpus <- tm_map(corpus,removeWords,stopwords("english"))
+corpus <- tm_map(corpus,stemDocument)
+```
+
+```{r Decontruct the tweets}
+freq <- DocumentTermMatrix(corpus)
+#Remove rare words
+sparse <- removeSparseTerms(freq,.995)
+#Create a matrix of the words
+tSparse <- as.data.frame(as.matrix(sparse))
+colnames(tSparse) = make.names(colnames(tSparse))
+tSparse$class = train$class
+```
+
+```{r Split}
+#Split the data
+trainSet <- create_train_test(tSparse,.8,train = T)
+testSet <- create_train_test(tSparse,.8,train = F)
+#Check the proportion of each class
+prop.table(table(tSparse$class))
+```
+
+#### Model
+
+```{r}
+#Make the Model
+#This is where you tweak the parameters to get the tree you want. This is also where the pruning is done.
+fit <- rpart(class~., data = trainSet,
+             method = "class",
+             minsplit = 28,
+             cp = .00045,
+             maxsurrogate = 1)
+#Shows the significance of the words it is using in the model
+printcp(fit)
+```
+
+#### Visualiztion
+
+```{r Decision Tree}
+rpart.plot(fit)
+```
+
+#### Testing
+
+```{r Testing the model}
+#Making the prediction
+prediction <- predict(fit, testSet, type = "class")
+#prediction
+#Testing the prediction against the training set
+table_mat <- table(testSet$class, prediction)
+accuracy_Test <- sum(diag(table_mat)) / sum(table_mat)
+accuracy_Test
 ```
 
 ### XgBoost
