@@ -1,0 +1,165 @@
+---
+title: "Support Vector Machine"
+author: "Duy Mach"
+date: "2023-04-20"
+output: html_document
+---
+
+```{r echo=TRUE}
+library('tidyverse')
+library('caret')
+library('tm')
+library('pacman')
+library('e1071')
+library('MASS')
+
+#CSC Project
+pacman::p_load(datasets,pacman, dplyr, GGally, ggplot2, ggthemes, ggvis,
+               httr, lubridate, plotly, rio, rmarkdown, shiny,
+               stringr, tidyverse, lessR, aplpack, readr, tm, SnowballC, rpart.plot)
+test <- read.csv("Datasets/ISarcasm/test.csv", fileEncoding = 'utf-8')
+train <- read.csv("Datasets/ISarcasm/train.csv", fileEncoding = 'utf-8')
+```
+
+```{r echo=TRUE}
+#class and tweets
+#-----------------------------------------------------------------------------------------------------------------------------
+#Preprocessing train
+train$class = as.factor(train$class)
+
+corpus <- Corpus(VectorSource(train$tweets))
+corpus <- tm_map(corpus,PlainTextDocument)
+corpus <- tm_map(corpus,tolower)
+corpus <- tm_map(corpus,removePunctuation)
+corpus <- tm_map(corpus,removeWords,stopwords("english"))
+corpus <- tm_map(corpus,stemDocument)
+
+freq <- DocumentTermMatrix(corpus)
+sparse <- removeSparseTerms(freq,.995)
+tSparse <- as.data.frame(as.matrix(sparse))
+colnames(tSparse) = make.names(colnames(tSparse), unique = TRUE)
+tSparse$class = train$class
+
+tSparse <- tSparse[sample(1:nrow(tSparse)), ]
+tSparse <- tSparse[1:1000,]
+```
+
+```{r  echo=TRUE}
+#Function
+create_train_test <- function(data, size = 0.8, train = TRUE) {
+  
+  #Shuffle Data
+  data <- data[sample(1:nrow(data)), ]
+  
+  
+  n_row = nrow(data)
+  total_row = size * n_row
+  train_sample <- 1: total_row
+  if (train == TRUE) {
+    return (data[train_sample, ])
+  } else {
+    return (data[-train_sample, ])
+  }
+}
+```
+
+```{r}
+Accuracy_Label_Table <- function (Labels, Guesses) {
+  Value_P <- function(Label, Guess){
+  bin <- as.integer( #Returns int equivalent of binary value Label,Guess
+    strtoi(
+      paste0(Label * 10 + Guess), 
+      base = 2
+      )
+    )
+  
+    arr <- c("TN", #Label = 0, Guess = 0
+             "FP", #Label = 0, Guess = 1
+             "FN", #Label = 1, Guess = 0
+             "TP" #Label = 1, Guess = 1
+             )
+    return(arr[bin+1])
+  
+  
+  }
+  
+  result <- map2(.x = Labels, .y = Guesses,.f = Value_P) %>% unlist()
+
+  TN_Count <- result[result == "TN"] %>% length()
+  FP_Count <- result[result == "FP"] %>% length()
+  FN_Count <- result[result == "FN"] %>% length()
+  TP_Count <- result[result == "TP"] %>% length()
+  
+  
+  group = c("True Negative (TN)", #Label = 0, Guess = 0
+             "False Positive (FP)", #Label = 0, Guess = 1
+             "False Negative (FN)", #Label = 1, Guess = 0
+             "True Positive (TP)" #Label = 1, Guess = 1
+             )
+  value = c(TN_Count,
+            FP_Count,
+            FN_Count,
+            TP_Count)
+  
+  data.frame(group = group,
+             value = value)
+}
+#-------------------------------------------------------------------------------
+FP_Pie_Chart <- function(Labels, Guesses) {
+  require('cowplot')
+  require('ggrepel')
+  require('grid')
+  a_table <- Accuracy_Label_Table(Labels = Labels,
+                     Guesses = Guesses)
+
+  N_Acc <- round(a_table[1,2] / (a_table[1,2] + a_table[3,2]), digits = 4)
+  P_Acc <- round(a_table[4,2] / (a_table[4,2] + a_table[2,2]), digits = 4)
+  Acc <- round((a_table[1,2] + a_table[4,2]) / (a_table[1,2] + a_table[3,2] + a_table[4,2] + a_table[2,2]), digits = 4)
+  
+  plt <- a_table %>%
+    ggplot(aes(x = "", y = value, fill = group)) +
+    geom_col() + 
+    geom_label(aes(label = value),
+               position = position_stack(vjust = 0.5),
+               show.legend = FALSE) +
+    coord_polar(theta = "y") +
+    scale_fill_manual(values = c("#FFABAB", "#FFB092",
+                                 "#b4d4fa", "#BFFCC6"),
+                      guide = guide_legend(reverse = TRUE)) + 
+    ggtitle("TP, TN, FP, FN Pie Chart") +
+    theme_void()
+  
+  plt <- ggdraw(plt)
+  
+  plt <- plt +
+    annotation_custom(grob = textGrob(paste0("Accuracy Positive: ",P_Acc)),  xmin = 1 - .2, xmax = 1 - .2, ymin = 1 - .025, ymax = 1- .025) +
+    annotation_custom(grob = textGrob(paste0("Accuracy Negative: ",N_Acc)),  xmin = 1 - .2, xmax = 1 - .2, ymin = 1 - .025 - .05, ymax = 1- .025 - .05) +
+    annotation_custom(grob = textGrob(paste0("Total Accuracy: ",Acc)),  xmin = 1 - .2, xmax = 1 - .2, ymin = 1 - .025 - .1, ymax = 1- .025 - .1)
+  plt
+}
+```
+
+```{r  echo=TRUE}
+#SVM Linear
+trainSet <- create_train_test(tSparse,.8,train = T)
+testSet <- create_train_test(tSparse,.8,train = F)
+trainSet$class = factor(trainSet$class)
+testSet$class = factor(testSet$class)
+
+set.seed(131)
+
+model <- train(
+  class~., data = trainSet, method = "svmLinear",
+  trControl = trainControl("cv", number = 10),
+  tuneGrid = expand.grid(C = seq(0, 2, length = 20)),
+  preProcess = c("center", "scale")
+)
+
+model$bestTune
+
+predicted.classes <- model %>% predict(testSet)
+mean(predicted.classes == testSet$class)
+
+predictions <- predict(model,testSet)
+confusionMatrix(predictions, testSet$class)
+```
